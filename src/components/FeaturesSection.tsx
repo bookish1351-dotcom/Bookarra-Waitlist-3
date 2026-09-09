@@ -98,27 +98,28 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const getStep = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return 360;
+    const firstCard = el.children[0] as HTMLElement;
+    if (!firstCard) return 360;
+    const cardWidth = firstCard.getBoundingClientRect().width;
+    const style = window.getComputedStyle(el);
+    const gap = parseFloat(style.columnGap || style.gap || '24') || 24;
+    return cardWidth + gap;
+  };
+
   const updateScrollState = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 15);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 15);
+    setCanScrollLeft(scrollLeft > 10);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
 
-    // Approximate active card
-    const cardElements = el.children;
-    if (cardElements.length > 0) {
-      let closestIdx = 0;
-      let minDistance = Infinity;
-      for (let i = 0; i < cardElements.length; i++) {
-        const child = cardElements[i] as HTMLElement;
-        const distance = Math.abs(child.offsetLeft - (scrollLeft + el.offsetLeft));
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestIdx = i;
-        }
-      }
-      setActiveIndex(closestIdx);
+    const step = getStep();
+    if (step > 0) {
+      const currentIndex = Math.round(scrollLeft / step);
+      setActiveIndex(Math.min(Math.max(currentIndex, 0), FEATURES.length - 1));
     }
   };
 
@@ -139,9 +140,9 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
   const handleScroll = (direction: 'left' | 'right') => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    const cardWidth = 360; // scroll by roughly one card + gap
+    const step = getStep();
     el.scrollBy({
-      left: direction === 'left' ? -cardWidth : cardWidth,
+      left: direction === 'left' ? -step : step,
       behavior: 'smooth',
     });
   };
@@ -149,14 +150,11 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
   const scrollToCard = (index: number) => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    const card = el.children[index] as HTMLElement;
-    if (card) {
-      card.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'start',
-      });
-    }
+    const step = getStep();
+    el.scrollTo({
+      left: index * step,
+      behavior: 'smooth',
+    });
   };
 
   return (
@@ -174,22 +172,26 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
           <h2 className="font-serif-display text-3xl sm:text-4xl md:text-5xl text-neutral-950 font-normal tracking-tight mb-4 leading-tight">
             Everything your books deserve.
           </h2>
-          <p className="text-neutral-700 text-base sm:text-lg leading-relaxed">
+          <p className="text-neutral-700 text-base sm:text-lg leading-relaxed mb-2">
             Bookarra brings your reading list, your goals, and your book community into one place — no spreadsheets, no sticky notes, no guesswork. Join the flock now.
+          </p>
+          <p className="text-xs sm:text-sm font-medium text-neutral-600 flex items-center gap-1.5">
+            <span>✦</span>
+            <span>Click any feature card to join the waitlist and enter your email</span>
           </p>
         </div>
 
         {/* Horizontal Navigation Controls */}
         <div className="flex items-center gap-3 shrink-0 self-start md:self-end">
           <span className="text-xs font-mono text-neutral-500 mr-1 hidden sm:inline select-none">
-            Scroll for more ({activeIndex + 1}/{FEATURES.length})
+            Feature {activeIndex + 1} of {FEATURES.length}
           </span>
           <button
             type="button"
             onClick={() => handleScroll('left')}
             disabled={!canScrollLeft}
-            aria-label="Scroll features left"
-            className="p-3 rounded-full border border-black/10 bg-white/90 backdrop-blur-md shadow-xs text-neutral-900 hover:bg-neutral-100 disabled:opacity-35 disabled:cursor-not-allowed transition-all cursor-pointer"
+            aria-label="Previous feature"
+            className="p-3 rounded-full border border-black/10 bg-white/90 backdrop-blur-md shadow-xs text-neutral-900 hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -197,8 +199,8 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
             type="button"
             onClick={() => handleScroll('right')}
             disabled={!canScrollRight}
-            aria-label="Scroll features right"
-            className="p-3 rounded-full border border-black/10 bg-white/90 backdrop-blur-md shadow-xs text-neutral-900 hover:bg-neutral-100 disabled:opacity-35 disabled:cursor-not-allowed transition-all cursor-pointer"
+            aria-label="Next feature"
+            className="p-3 rounded-full border border-black/10 bg-white/90 backdrop-blur-md shadow-xs text-neutral-900 hover:bg-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -210,8 +212,8 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
         <div
           ref={scrollContainerRef}
           id="features-scroll-bar"
-          className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 pt-2 -mx-5 px-5 sm:-mx-8 sm:px-8 md:-mx-10 md:px-10 no-scrollbar cursor-grab active:cursor-grabbing"
-          style={{ scrollPaddingLeft: '1.25rem' }}
+          className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth py-4 px-1 no-scrollbar cursor-grab active:cursor-grabbing"
+          style={{ scrollbarWidth: 'none' }}
         >
           {FEATURES.map((feature, idx) => {
             const Icon = feature.icon;
@@ -220,21 +222,33 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
               <div
                 key={feature.id}
                 id={feature.id}
-                className={`group flex flex-col justify-between w-[300px] sm:w-[350px] md:w-[370px] shrink-0 snap-start bg-white/90 backdrop-blur-md rounded-2xl border p-6 sm:p-8 shadow-xs hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${
+                role="button"
+                tabIndex={0}
+                onClick={onOpenWaitlist}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenWaitlist();
+                  }
+                }}
+                aria-label={`${feature.title} - click to join waitlist`}
+                className={`group flex flex-col justify-between w-full sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] shrink-0 snap-start bg-white/95 backdrop-blur-md rounded-3xl border p-7 sm:p-8 shadow-sm hover:shadow-2xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 select-none ${
                   isHighlight ? 'border-black/20 ring-1 ring-black/5' : 'border-black/10'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-6">
-                    <div className="p-3 bg-black/5 group-hover:bg-black group-hover:text-white text-neutral-900 rounded-xl transition-colors duration-200">
+                    <div className="p-3 bg-black/5 group-hover:bg-black group-hover:text-white text-neutral-900 rounded-2xl transition-colors duration-200">
                       <Icon className="w-6 h-6" />
                     </div>
-                    <span className="text-xs font-mono font-medium tracking-wider text-neutral-400 group-hover:text-neutral-700 transition-colors">
-                      {feature.badge}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-medium tracking-wider text-neutral-400 group-hover:text-neutral-700 transition-colors">
+                        {feature.badge}
+                      </span>
+                    </div>
                   </div>
 
-                  <h3 className="font-serif-display text-xl sm:text-2xl font-normal text-neutral-950 tracking-tight mb-3">
+                  <h3 className="font-serif-display text-2xl font-normal text-neutral-950 tracking-tight mb-3 group-hover:text-neutral-800 transition-colors">
                     {feature.title}
                   </h3>
 
@@ -243,11 +257,14 @@ export function FeaturesSection({ onOpenWaitlist }: FeaturesSectionProps) {
                   </p>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center justify-between">
+                <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-between">
                   <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                     {feature.category}
                   </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 group-hover:bg-black transition-colors" />
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-900 group-hover:text-black group-hover:underline underline-offset-4">
+                    <span>Join waitlist</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                  </span>
                 </div>
               </div>
             );
