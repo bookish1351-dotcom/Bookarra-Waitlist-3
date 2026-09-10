@@ -5,9 +5,10 @@ import { submitToWaitlist } from '../lib/supabase';
 interface WaitlistModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: (email: string) => void;
 }
 
-export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
+export function WaitlistModal({ isOpen, onClose, onSuccess }: WaitlistModalProps) {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,8 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes('@')) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setError('Please enter a valid email address.');
       return;
     }
@@ -38,8 +40,11 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
     setError('');
 
     try {
-      await submitToWaitlist(email);
+      await submitToWaitlist(cleanEmail);
       setSubmitted(true);
+      if (onSuccess) {
+        onSuccess(cleanEmail);
+      }
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.');
     } finally {

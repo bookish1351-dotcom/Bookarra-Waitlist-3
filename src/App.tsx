@@ -11,6 +11,7 @@ import { FeaturesSection } from './components/FeaturesSection';
 import { WaitlistModal } from './components/WaitlistModal';
 import { LearnMoreModal } from './components/LearnMoreModal';
 import { ContactModal, BOOKARRA_EMAIL_ADDRESS } from './components/ContactModal';
+import { WelcomePage } from './components/WelcomePage';
 import { Instagram, Pin, Video, Mail, Check } from 'lucide-react';
 
 export default function App() {
@@ -18,11 +19,54 @@ export default function App() {
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
+  const [signedUpEmail, setSignedUpEmail] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const isWelcomeRoute =
+        window.location.pathname === '/welcome' ||
+        window.location.search.includes('welcome=true');
+      if (isWelcomeRoute) {
+        return localStorage.getItem('bookarra_last_email') || 'your email';
+      }
+    }
+    return null;
+  });
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(BOOKARRA_EMAIL_ADDRESS);
     setShowCopyToast(true);
   };
+
+  const handleWaitlistSuccess = (email: string) => {
+    setIsWaitlistOpen(false);
+    setSignedUpEmail(email);
+    try {
+      localStorage.setItem('bookarra_last_email', email);
+      window.history.pushState({}, '', '/welcome');
+    } catch {
+      // Ignore history/storage errors
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToHome = () => {
+    setSignedUpEmail(null);
+    try {
+      window.history.replaceState({}, '', '/');
+    } catch {
+      // Ignore history errors
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname !== '/welcome') {
+        setSignedUpEmail(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!showCopyToast) return;
@@ -31,6 +75,16 @@ export default function App() {
     }, 3200);
     return () => clearTimeout(timer);
   }, [showCopyToast]);
+
+  // If the user signed up, show the dedicated welcome confirmation page
+  if (signedUpEmail) {
+    return (
+      <WelcomePage
+        email={signedUpEmail}
+        onBackToHome={handleBackToHome}
+      />
+    );
+  }
 
   return (
     <main className="relative w-full min-h-screen overflow-x-hidden selection:bg-black selection:text-white">
@@ -135,6 +189,7 @@ export default function App() {
       <WaitlistModal
         isOpen={isWaitlistOpen}
         onClose={() => setIsWaitlistOpen(false)}
+        onSuccess={handleWaitlistSuccess}
       />
       <LearnMoreModal
         isOpen={isLearnMoreOpen}
