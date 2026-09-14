@@ -12,6 +12,7 @@ import { WaitlistModal } from './components/WaitlistModal';
 import { LearnMoreModal } from './components/LearnMoreModal';
 import { ContactModal, BOOKARRA_EMAIL_ADDRESS } from './components/ContactModal';
 import { WelcomePage } from './components/WelcomePage';
+import { GoalProgressBar } from './components/GoalProgressBar';
 import { Instagram, Pin, Video, Mail, Check } from 'lucide-react';
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
+  const [waitlistCount, setWaitlistCount] = useState(1000);
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const isWelcomeRoute =
@@ -38,6 +40,7 @@ export default function App() {
 
   const handleWaitlistSuccess = (email: string) => {
     setIsWaitlistOpen(false);
+    setWaitlistCount(prev => prev + 1);
     setSignedUpEmail(email);
     try {
       localStorage.setItem('bookarra_last_email', email);
@@ -104,7 +107,7 @@ export default function App() {
       <FeaturesSection onOpenWaitlist={() => setIsWaitlistOpen(true)} />
 
       {/* Footer */}
-      <footer className="relative z-10 py-12 px-5 sm:px-8 border-t border-black/10 bg-white/80 backdrop-blur-md">
+      <footer className="relative z-10 pt-12 pb-24 sm:pb-28 px-5 sm:px-8 border-t border-black/10 bg-white/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto flex flex-col items-center justify-center text-center gap-5">
           <p className="text-xs text-neutral-500 font-medium">
             © {new Date().getFullYear()} Bookarra. All rights reserved.
@@ -185,6 +188,13 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Goal Progress Bar fixed to bottom of screen */}
+      <GoalProgressBar
+        currentCount={waitlistCount}
+        goalCount={10000}
+        onOpenWaitlist={() => setIsWaitlistOpen(true)}
+      />
+
       {/* Modals */}
       <WaitlistModal
         isOpen={isWaitlistOpen}
@@ -208,7 +218,7 @@ export default function App() {
           id="email-copied-toast"
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 bg-neutral-900/95 text-white rounded-xl shadow-2xl border border-neutral-800 text-xs sm:text-sm font-medium backdrop-blur-md animate-fade-in transition-all"
+          className="fixed bottom-20 right-6 z-[100] flex items-center gap-3 px-4 py-3 bg-neutral-900/95 text-white rounded-xl shadow-2xl border border-neutral-800 text-xs sm:text-sm font-medium backdrop-blur-md animate-fade-in transition-all"
         >
           <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5" />
