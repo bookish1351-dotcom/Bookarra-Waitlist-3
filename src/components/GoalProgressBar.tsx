@@ -7,14 +7,18 @@ interface GoalProgressBarProps {
 }
 
 export function GoalProgressBar({
-  currentCount = 1000,
+  currentCount = 3,
   goalCount = 10000,
   onOpenWaitlist,
 }: GoalProgressBarProps) {
-  const percentage = Math.min(
-    100,
-    Math.round((currentCount / goalCount) * 100)
-  );
+  const rawPercentage = (currentCount / goalCount) * 100;
+  const displayPercentage =
+    rawPercentage > 0 && rawPercentage < 1
+      ? '<1%'
+      : `${Math.min(100, Math.round(rawPercentage))}%`;
+  // Give at least a subtle visible indicator if count > 0
+  const barWidth =
+    currentCount > 0 ? Math.max(1, Math.min(100, rawPercentage)) : 0;
 
   return (
     <aside
@@ -42,15 +46,15 @@ export function GoalProgressBar({
           </span>
         </div>
 
-        {/* Center: Interactive Progress Bar (10%) */}
+        {/* Center: Interactive Progress Bar */}
         <div className="w-full sm:flex-1 max-w-lg flex items-center gap-3">
           <div
             className="flex-1 h-2 sm:h-2.5 bg-neutral-200/90 rounded-full overflow-hidden p-[1px] border border-black/5"
-            title={`${currentCount.toLocaleString()} of ${goalCount.toLocaleString()} people (${percentage}%)`}
+            title={`${currentCount.toLocaleString()} of ${goalCount.toLocaleString()} people (${displayPercentage})`}
           >
             <div
               className="h-full bg-black rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${percentage}%` }}
+              style={{ width: `${barWidth}%` }}
               role="progressbar"
               aria-valuenow={currentCount}
               aria-valuemin={0}
@@ -58,7 +62,7 @@ export function GoalProgressBar({
             />
           </div>
           <span className="text-[11px] sm:text-xs font-mono font-medium text-neutral-600 shrink-0">
-            {percentage}%
+            {displayPercentage}
           </span>
         </div>
 
