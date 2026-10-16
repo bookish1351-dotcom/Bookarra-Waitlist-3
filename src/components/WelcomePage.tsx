@@ -1,12 +1,58 @@
-import { Check, ChevronLeft, Mail } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Check,
+  ChevronLeft,
+  Mail,
+  Sparkles,
+  Copy,
+  Share2,
+  Ticket,
+  Users,
+  Award,
+  Gift,
+} from 'lucide-react';
 import { BackgroundVideo } from './BackgroundVideo';
+import {
+  getCurrentUserProfile,
+  getAllCodes,
+  getShareableUrl,
+  type UserReferralProfile,
+} from '../lib/referral';
 
 interface WelcomePageProps {
   email?: string;
   onBackToHome: () => void;
+  referralProfile?: UserReferralProfile | null;
 }
 
-export function WelcomePage({ email, onBackToHome }: WelcomePageProps) {
+export function WelcomePage({ email, onBackToHome, referralProfile: propProfile }: WelcomePageProps) {
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Retrieve user profile (from props or storage)
+  const profile = propProfile || getCurrentUserProfile(email);
+
+  // If user has their own code, look up active stats
+  const allCodes = getAllCodes();
+  const codeRecord = profile?.referralCode ? allCodes[profile.referralCode] : null;
+  const usedCount = codeRecord ? codeRecord.usedCount : 0;
+  const maxUses = codeRecord ? codeRecord.maxUses : 5;
+  const remaining = Math.max(0, maxUses - usedCount);
+
+  const handleCopyCode = () => {
+    if (!profile?.referralCode) return;
+    navigator.clipboard.writeText(profile.referralCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    if (!profile?.referralCode) return;
+    navigator.clipboard.writeText(getShareableUrl(profile.referralCode));
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
   return (
     <div
       id="welcome-page"
@@ -43,17 +89,195 @@ export function WelcomePage({ email, onBackToHome }: WelcomePageProps) {
         {/* Main Headline */}
         <h1
           id="welcome-headline"
-          className="font-serif-display text-5xl sm:text-6xl md:text-7xl font-normal text-black tracking-tight leading-[1.04] mb-6 sm:mb-7 select-none drop-shadow-xs"
+          className="font-serif-display text-5xl sm:text-6xl md:text-7xl font-normal text-black tracking-tight leading-[1.04] mb-4 sm:mb-5 select-none drop-shadow-xs"
         >
-          You're in.
-          <br />
-          Almost.
+          {profile?.isGoldenTicketWinner ? (
+            <>
+              Golden Ticket.
+              <br />
+              You're in.
+            </>
+          ) : (
+            <>
+              You're in.
+              <br />
+              Almost.
+            </>
+          )}
         </h1>
 
         {/* Step Progress Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-black/10 text-[11px] sm:text-xs font-mono font-medium tracking-widest text-neutral-800 uppercase mb-7 sm:mb-8 shadow-xs select-none">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-black/10 text-[11px] sm:text-xs font-mono font-medium tracking-widest text-neutral-800 uppercase mb-6 sm:mb-7 shadow-xs select-none">
           Step 1 of 3 Complete
         </div>
+
+        {/* ============================================================== */}
+        {/* EXCLUSIVE REFERRAL PASS SECTION                               */}
+        {/* ============================================================== */}
+        {profile?.hasOwnCode && profile.referralCode ? (
+          <div
+            id="referral-pass-card"
+            className="w-full bg-white/95 backdrop-blur-md rounded-3xl border border-black/10 p-6 sm:p-7 shadow-2xl mb-7 text-left transition-all relative overflow-hidden"
+          >
+            {/* Ambient accent ribbon */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-200/40 via-rose-100/30 to-transparent pointer-events-none rounded-bl-full" />
+
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-neutral-900 text-amber-400 rounded-lg">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 font-bold block">
+                    {profile.isGoldenTicketWinner
+                      ? '1-in-5 Golden Ticket Winner'
+                      : 'Exclusive Waitlist Pass'}
+                  </span>
+                  <h4 className="text-base sm:text-lg font-serif-display font-bold text-neutral-950">
+                    Your 5-Person Invite Code
+                  </h4>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-mono font-bold bg-neutral-100 text-neutral-800 px-2.5 py-1 rounded-full border border-neutral-200">
+                {remaining} of 5 spots left
+              </span>
+            </div>
+
+            {/* Code Box */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-neutral-50 p-3.5 rounded-2xl border border-black/10 mb-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <Ticket className="w-5 h-5 text-neutral-500 shrink-0" />
+                <span className="font-mono text-xl sm:text-2xl font-bold tracking-widest text-black select-all">
+                  {profile.referralCode}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-neutral-100 text-neutral-800 text-xs font-semibold border border-black/10 transition-colors cursor-pointer"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-700">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Link Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Share Link</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 1 Month Free Premium Reward Banner */}
+            <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-amber-500/15 border border-amber-300 rounded-2xl mb-4 text-left shadow-2xs">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Gift className="w-5 h-5" />
+              </div>
+              <div className="flex-1 text-xs leading-snug">
+                <span className="font-bold text-amber-950 block text-sm">
+                  1 Month Free Bookarra Premium
+                </span>
+                <span className="text-amber-950/80 font-medium">
+                  Get 5 people to join with your invite code and receive 1 month of Bookarra Premium completely free at launch!
+                </span>
+              </div>
+            </div>
+
+            {/* 5-Slot Visual Tracker */}
+            <div className="space-y-2 mb-4 bg-white/70 rounded-2xl p-3.5 border border-neutral-200/70">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-700 font-medium flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-neutral-500" />
+                  Friends joined with your code:
+                </span>
+                <span className="font-mono font-bold text-neutral-900">
+                  {usedCount} / {maxUses}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-5 gap-2">
+                {[1, 2, 3, 4, 5].map((slot) => {
+                  const filled = slot <= usedCount;
+                  return (
+                    <div
+                      key={slot}
+                      className={`h-2.5 rounded-full transition-all ${
+                        filled
+                          ? 'bg-black shadow-xs'
+                          : 'bg-neutral-200/90 border border-black/5'
+                      }`}
+                      title={`Invite Slot ${slot} (${filled ? 'Claimed' : 'Available'})`}
+                    />
+                  );
+                })}
+              </div>
+
+              <div className="text-[11px] font-medium text-right pt-0.5">
+                {usedCount >= maxUses ? (
+                  <span className="text-emerald-700 font-bold flex items-center justify-end gap-1">
+                    <Check className="w-3.5 h-3.5" />
+                    1 Month Free Premium Reward Unlocked!
+                  </span>
+                ) : (
+                  <span className="text-amber-800">
+                    {remaining} more friend{remaining === 1 ? '' : 's'} to unlock 1 Month Free Premium
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Crucial Rule Explanation */}
+            <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/60 text-[11px] sm:text-xs text-amber-950 leading-relaxed">
+              <strong>How It Works:</strong> Share your code with 5 people. When all 5 join, you earn{' '}
+              <span className="font-bold underline decoration-amber-400">1 month free of Bookarra Premium</span>.
+              Plus, exactly 1 out of your 5 referrals will unlock their own code to invite others!
+            </div>
+          </div>
+        ) : profile?.usedReferralCode ? (
+          /* Referred member who did not win code (the other 4 out of 5) */
+          <div className="w-full bg-white/95 backdrop-blur-md rounded-3xl border border-black/10 p-5 sm:p-6 shadow-xl mb-7 text-left">
+            <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-neutral-800">
+              <Award className="w-4 h-4 text-emerald-600" />
+              <span>Priority Access Spot Confirmed via {profile.usedReferralCode}</span>
+            </div>
+            <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed mb-3">
+              You are locked in as spot{' '}
+              <strong className="text-neutral-950 font-bold">
+                #{profile.referralSlotNumber || 1} of 5
+              </strong>{' '}
+              from your friend's invite code.
+            </p>
+            <div className="bg-neutral-100 rounded-xl p-3 text-[11px] text-neutral-600 leading-relaxed">
+              <strong>Waitlist Invite Rule:</strong> To keep early access curated, only 1 out of
+              every 5 referred readers unlocks their own invite codes to distribute. Your early
+              access spot is 100% saved!
+            </div>
+          </div>
+        ) : null}
 
         {/* 3-Step Progress List */}
         <div className="w-full max-w-sm bg-white/90 backdrop-blur-md rounded-3xl border border-black/10 p-6 sm:p-7 shadow-xl space-y-4 mb-7 text-left">
@@ -113,7 +337,9 @@ export function WelcomePage({ email, onBackToHome }: WelcomePageProps) {
           {email && (
             <div className="inline-flex items-center gap-2 pt-1 text-xs text-neutral-600 font-mono">
               <Mail className="w-3.5 h-3.5 text-neutral-500" />
-              <span>Reserved for <strong className="text-neutral-900 font-semibold">{email}</strong></span>
+              <span>
+                Reserved for <strong className="text-neutral-900 font-semibold">{email}</strong>
+              </span>
             </div>
           )}
         </div>

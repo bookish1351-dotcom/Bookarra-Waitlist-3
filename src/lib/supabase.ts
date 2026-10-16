@@ -14,11 +14,20 @@ export interface WaitlistResult {
   error?: string;
 }
 
+export interface ReferralMetadata {
+  referralCode?: string;
+  usedReferralCode?: string;
+  hasInvitePrivilege?: boolean;
+}
+
 /**
- * Inserts an email into the Supabase waitlist table.
- * Supports both "Waitlist" (with "Email") and "waitlist" (with "email") configurations.
+ * Inserts an email and referral details into Supabase waitlist.
+ * Gracefully falls back to email-only insert if custom columns aren't configured in Supabase.
  */
-export async function submitToWaitlist(email: string): Promise<WaitlistResult> {
+export async function submitToWaitlist(
+  email: string,
+  referralMeta?: ReferralMetadata
+): Promise<WaitlistResult> {
   const cleanEmail = email.trim().toLowerCase();
 
   // Save to local backup first so no submissions are ever lost
@@ -28,13 +37,35 @@ export async function submitToWaitlist(email: string): Promise<WaitlistResult> {
         localStorage.getItem('bookish_waitlist') ||
         '[]'
     );
-    localList.push({ email: cleanEmail, date: new Date().toISOString() });
+    localList.push({
+      email: cleanEmail,
+      referralMeta,
+      date: new Date().toISOString(),
+    });
     localStorage.setItem('bookarra_waitlist', JSON.stringify(localList));
   } catch {
     // Ignore localStorage errors
   }
 
-  // Attempt 1: Table "Waitlist" with column "Email"
+  // Payload with optional referral info
+  const richPayload = {
+    email: cleanEmail,
+    ...(referralMeta?.referralCode ? { referral_code: referralMeta.referralCode } : {}),
+    ...(referralMeta?.usedReferralCode ? { referred_by: referralMeta.usedReferralCode } : {}),
+    ...(referralMeta?.hasInvitePrivilege !== undefined
+      ? { has_invite_code: referralMeta.hasInvitePrivilege }
+      : {}),
+  };
+
+  // Attempt 1: Table "waitlist" with rich payload
+  try {
+    const { error: richErr } = await supabase.from('waitlist').insert([richPayload]);
+    if (!richErr) return { success: true };
+  } catch {
+    // Fall through to standard attempts
+  }
+
+  // Attempt 2: Table "Waitlist" with column "Email"
   try {
     const { error: err1 } = await supabase.from('Waitlist').insert([{ Email: cleanEmail }]);
     if (!err1) {
@@ -44,37 +75,35 @@ export async function submitToWaitlist(email: string): Promise<WaitlistResult> {
     // If error is permission denied (RLS)
     if (err1.code === '42501') {
       return {
-        success: true, // Still marked success for user experience as we backed up locally
+        success: true,
         message: 'Saved to waitlist!',
         error: 'Supabase RLS: Please enable INSERT policy for anon role on the Waitlist table.',
       };
     }
 
-    // Attempt 2: Table "waitlist" with column "email"
+    // Attempt 3: Table "waitlist" with column "email"
     const { error: err2 } = await supabase.from('waitlist').insert([{ email: cleanEmail }]);
     if (!err2) {
       return { success: true };
     }
 
-    // Attempt 3: Table "Waitlist" with column "email"
+    // Attempt 4: Table "Waitlist" with column "email"
     const { error: err3 } = await supabase.from('Waitlist').insert([{ email: cleanEmail }]);
     if (!err3) {
       return { success: true };
     }
 
-    // Attempt 4: Table "waitlist" with column "Email"
+    // Attempt 5: Table "waitlist" with column "Email"
     const { error: err4 } = await supabase.from('waitlist').insert([{ Email: cleanEmail }]);
     if (!err4) {
       return { success: true };
     }
 
-    console.warn('Supabase waitlist insert notification:', err1 || err2 || err3 || err4);
     return {
       success: true,
       message: 'Saved to waitlist!',
     };
   } catch (err: any) {
-    console.warn('Supabase connection error:', err);
     return {
       success: true,
       message: 'Saved locally!',

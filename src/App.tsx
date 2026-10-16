@@ -13,6 +13,7 @@ import { LearnMoreModal } from './components/LearnMoreModal';
 import { ContactModal, BOOKARRA_EMAIL_ADDRESS } from './components/ContactModal';
 import { WelcomePage } from './components/WelcomePage';
 import { GoalProgressBar } from './components/GoalProgressBar';
+import { getCurrentUserProfile, type UserReferralProfile, type ReferralSignupResult } from './lib/referral';
 import { Instagram, Pin, Video, Mail, Check } from 'lucide-react';
 
 export default function App() {
@@ -21,6 +22,10 @@ export default function App() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
   const [waitlistCount, setWaitlistCount] = useState(9);
+  const [incomingReferralCode, setIncomingReferralCode] = useState<string>('');
+  const [userProfile, setUserProfile] = useState<UserReferralProfile | null>(() =>
+    getCurrentUserProfile()
+  );
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const isWelcomeRoute =
@@ -33,15 +38,28 @@ export default function App() {
     return null;
   });
 
+  // Check for ?ref= in URL and auto-open waitlist if an invite link was visited
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref') || params.get('invite');
+      if (ref) {
+        setIncomingReferralCode(ref.trim().toUpperCase());
+      }
+    }
+  }, []);
+
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(BOOKARRA_EMAIL_ADDRESS);
     setShowCopyToast(true);
   };
 
-  const handleWaitlistSuccess = (email: string) => {
+  const handleWaitlistSuccess = (email: string, _result?: ReferralSignupResult) => {
     setIsWaitlistOpen(false);
     setWaitlistCount(prev => prev + 1);
     setSignedUpEmail(email);
+    const updatedProfile = getCurrentUserProfile(email);
+    setUserProfile(updatedProfile);
     try {
       localStorage.setItem('bookarra_last_email', email);
       window.history.pushState({}, '', '/welcome');
@@ -84,6 +102,7 @@ export default function App() {
     return (
       <WelcomePage
         email={signedUpEmail}
+        referralProfile={userProfile}
         onBackToHome={handleBackToHome}
       />
     );
@@ -200,6 +219,7 @@ export default function App() {
         isOpen={isWaitlistOpen}
         onClose={() => setIsWaitlistOpen(false)}
         onSuccess={handleWaitlistSuccess}
+        defaultReferralCode={incomingReferralCode}
       />
       <LearnMoreModal
         isOpen={isLearnMoreOpen}
