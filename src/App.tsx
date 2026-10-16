@@ -20,7 +20,7 @@ export default function App() {
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
-  const [waitlistCount, setWaitlistCount] = useState(6);
+  const [waitlistCount, setWaitlistCount] = useState(9);
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const isWelcomeRoute =

@@ -7,7 +7,7 @@ interface GoalProgressBarProps {
 }
 
 export function GoalProgressBar({
-  currentCount = 6,
+  currentCount = 9,
   goalCount = 10000,
   onOpenWaitlist,
 }: GoalProgressBarProps) {
