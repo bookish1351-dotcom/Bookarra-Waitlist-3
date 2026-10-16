@@ -23,7 +23,7 @@ import {
 interface WaitlistModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (email: string, result?: ReferralSignupResult) => void;
+  onSuccess?: (email: string, result?: ReferralSignupResult, isExisting?: boolean) => void;
   defaultReferralCode?: string;
 }
 
@@ -103,18 +103,28 @@ export function WaitlistModal({
         return;
       }
 
-      // 2. Submit to Supabase / Local storage
-      await submitToWaitlist(cleanEmail, {
-        referralCode: refResult.referralCode,
-        usedReferralCode: refResult.usedReferralCode,
-        hasInvitePrivilege: refResult.hasOwnCode,
-      });
+      // 2. If it's a new user, submit to Supabase / Local storage
+      if (!refResult.isExistingUser) {
+        await submitToWaitlist(cleanEmail, {
+          referralCode: refResult.referralCode,
+          usedReferralCode: refResult.usedReferralCode,
+          hasInvitePrivilege: refResult.hasOwnCode,
+        });
+      }
 
       setReferralResult(refResult);
-      setSubmitted(true);
 
+      // If user is already registered, don't let them re-sign up and route immediately to the Welcome Page
+      if (refResult.isExistingUser) {
+        if (onSuccess) {
+          onSuccess(cleanEmail, refResult, true);
+        }
+        return;
+      }
+
+      setSubmitted(true);
       if (onSuccess) {
-        onSuccess(cleanEmail, refResult);
+        onSuccess(cleanEmail, refResult, false);
       }
     } catch (err: any) {
       setError(err?.message || 'Something went wrong. Please try again.');
@@ -220,7 +230,7 @@ export function WaitlistModal({
                       Bonus Perk: 1 Month Free Premium!
                     </span>
                     <span className="text-amber-900/90 font-medium">
-                      Get all 5 people to join with your code to unlock 1 month of Bookarra Premium for free at launch.
+                      Get all 5 people to join with your code to receive a unique one-time use code for 1 month of Bookarra Premium for free.
                     </span>
                   </div>
                 </div>
@@ -310,7 +320,7 @@ export function WaitlistModal({
             </h2>
             <p className="text-neutral-600 text-xs sm:text-sm mb-4 leading-relaxed">
               Reserve your spot for early access to Bookarra. Direct signups receive an exclusive
-              invite code — invite 5 friends to earn <strong className="text-neutral-900 font-semibold">1 month free of Bookarra Premium</strong>!
+              invite code — get 5 friends to join and receive a <strong className="text-neutral-900 font-semibold">one-time use code for 1 month free of Bookarra Premium</strong>!
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-3.5">

@@ -27,17 +27,21 @@ export interface UserReferralProfile {
   usedReferralCode?: string;
   isGoldenTicketWinner?: boolean;
   referralSlotNumber?: number; // 1 to 5
+  premiumRewardCode?: string; // One-time promo code unlocked after 5 referrals join
+  premiumRewardClaimedAt?: string;
   createdAt: string;
 }
 
 export interface ReferralSignupResult {
   success: boolean;
+  isExistingUser?: boolean;
   hasOwnCode: boolean;
   referralCode?: string;
   usedReferralCode?: string;
   isGoldenTicketWinner?: boolean;
   referralSlotNumber?: number;
   remainingInvites?: number;
+  premiumRewardCode?: string;
   message: string;
   error?: string;
 }
@@ -77,6 +81,74 @@ export function generateCode(): string {
     random += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return `BOOK-${random}`;
+}
+
+/**
+ * Generate a unique, one-time-use Bookarra Premium redemption code: PREM-1MO-XXXX
+ */
+export function generatePremiumPromoCode(): string {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let random = '';
+  for (let i = 0; i < 4; i++) {
+    random += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `PREM-1MO-${random}`;
+}
+
+/**
+ * Claim or retrieve the one-time promo code once 5 referrals join
+ */
+export function claimOrGetPremiumRewardCode(email?: string): string | null {
+  if (typeof window === 'undefined') return null;
+  const profile = getCurrentUserProfile(email);
+  if (!profile || !profile.referralCode) return null;
+
+  if (profile.premiumRewardCode) {
+    return profile.premiumRewardCode;
+  }
+
+  const allCodes = getAllCodes();
+  const codeRec = allCodes[profile.referralCode];
+  if (codeRec && codeRec.usedCount >= 5) {
+    const promoCode = generatePremiumPromoCode();
+    profile.premiumRewardCode = promoCode;
+    profile.premiumRewardClaimedAt = new Date().toISOString();
+    saveUserProfile(profile);
+    return promoCode;
+  }
+
+  return null;
+}
+
+/**
+ * Helper to simulate a friend joining with a code (useful for testing the 5/5 reward)
+ */
+export function simulateAddReferral(code: string): { success: boolean; newCount: number; promoCode?: string } {
+  if (typeof window === 'undefined') return { success: false, newCount: 0 };
+  const cleanCode = code.trim().toUpperCase();
+  const all = getAllCodes();
+  const rec = all[cleanCode];
+  if (!rec) return { success: false, newCount: 0 };
+  if (rec.usedCount >= rec.maxUses) return { success: false, newCount: rec.usedCount };
+
+  rec.usedCount += 1;
+  rec.referredEmails.push(`friend${rec.usedCount}@example.com`);
+  saveCode(rec);
+
+  let unlockedPromo: string | undefined;
+  if (rec.usedCount >= 5) {
+    const profiles = getAllProfiles();
+    const refEmail = rec.ownerEmail.toLowerCase();
+    const refProf = profiles[refEmail] || getCurrentUserProfile();
+    if (refProf && !refProf.premiumRewardCode) {
+      unlockedPromo = generatePremiumPromoCode();
+      refProf.premiumRewardCode = unlockedPromo;
+      refProf.premiumRewardClaimedAt = new Date().toISOString();
+      saveUserProfile(refProf);
+    }
+  }
+
+  return { success: true, newCount: rec.usedCount, promoCode: unlockedPromo };
 }
 
 export function getAllCodes(): Record<string, ReferralCodeRecord> {
@@ -191,16 +263,71 @@ export function processReferralSignup(
       const rec = getAllCodes()[p.referralCode];
       if (rec) remaining = Math.max(0, rec.maxUses - rec.usedCount);
     }
+    // Ensure active profile is set for session
+    saveUserProfile(p);
     return {
       success: true,
+      isExistingUser: true,
       hasOwnCode: p.hasOwnCode,
       referralCode: p.referralCode,
       usedReferralCode: p.usedReferralCode,
       isGoldenTicketWinner: p.isGoldenTicketWinner,
       referralSlotNumber: p.referralSlotNumber,
       remainingInvites: remaining,
-      message: 'Welcome back! Your waitlist status is confirmed.',
+      message: "You're already on the waitlist! Opening your invite pass...",
     };
+  }
+
+  // Check waitlist backup in localStorage in case profile wasn't stored
+  try {
+    const rawWaitlist =
+      localStorage.getItem('bookarra_waitlist') ||
+      localStorage.getItem('bookish_waitlist');
+    if (rawWaitlist) {
+      const list = JSON.parse(rawWaitlist);
+      const found = Array.isArray(list) && list.some(
+        (item: any) =>
+          item === cleanEmail ||
+          (typeof item === 'object' && item?.email?.toLowerCase() === cleanEmail)
+      );
+      if (found) {
+        // Synthesize an existing profile so they get their referral codes
+        let newCode = generateCode();
+        const all = getAllCodes();
+        while (all[newCode]) {
+          newCode = generateCode();
+        }
+        const newRecord: ReferralCodeRecord = {
+          code: newCode,
+          ownerEmail: cleanEmail,
+          maxUses: 5,
+          usedCount: 0,
+          referredEmails: [],
+          luckySlotNumber: Math.floor(Math.random() * 5) + 1,
+          createdAt: new Date().toISOString(),
+        };
+        saveCode(newRecord);
+
+        const syntheticProfile: UserReferralProfile = {
+          email: cleanEmail,
+          hasOwnCode: true,
+          referralCode: newCode,
+          createdAt: new Date().toISOString(),
+        };
+        saveUserProfile(syntheticProfile);
+
+        return {
+          success: true,
+          isExistingUser: true,
+          hasOwnCode: true,
+          referralCode: newCode,
+          remainingInvites: 5,
+          message: "You're already on the waitlist! Opening your invite pass...",
+        };
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
   }
 
   // -------------------------------------------------------------
@@ -265,6 +392,18 @@ export function processReferralSignup(
   referrerRecord.usedCount = slotNumber;
   referrerRecord.referredEmails = [...referrerRecord.referredEmails, cleanEmail];
   saveCode(referrerRecord);
+
+  // If the referrer has reached 5 people, unlock their exclusive one-time promo code!
+  if (referrerRecord.usedCount >= 5) {
+    const profiles = getAllProfiles();
+    const refEmail = referrerRecord.ownerEmail.toLowerCase();
+    const refProf = profiles[refEmail];
+    if (refProf && !refProf.premiumRewardCode) {
+      refProf.premiumRewardCode = generatePremiumPromoCode();
+      refProf.premiumRewardClaimedAt = new Date().toISOString();
+      saveUserProfile(refProf);
+    }
+  }
 
   // Check if this person is the lucky 1 out of 5!
   const isWinner = slotNumber === referrerRecord.luckySlotNumber;

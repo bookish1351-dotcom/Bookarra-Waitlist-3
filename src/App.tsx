@@ -49,14 +49,24 @@ export default function App() {
     }
   }, []);
 
+  const [isWelcomeBack, setIsWelcomeBack] = useState(false);
+
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(BOOKARRA_EMAIL_ADDRESS);
     setShowCopyToast(true);
   };
 
-  const handleWaitlistSuccess = (email: string, _result?: ReferralSignupResult) => {
+  const handleWaitlistSuccess = (
+    email: string,
+    result?: ReferralSignupResult,
+    isExisting?: boolean
+  ) => {
     setIsWaitlistOpen(false);
-    setWaitlistCount(prev => prev + 1);
+    const existing = Boolean(isExisting || result?.isExistingUser);
+    if (!existing) {
+      setWaitlistCount(prev => prev + 1);
+    }
+    setIsWelcomeBack(existing);
     setSignedUpEmail(email);
     const updatedProfile = getCurrentUserProfile(email);
     setUserProfile(updatedProfile);
@@ -71,6 +81,7 @@ export default function App() {
 
   const handleBackToHome = () => {
     setSignedUpEmail(null);
+    setIsWelcomeBack(false);
     try {
       window.history.replaceState({}, '', '/');
     } catch {
@@ -83,6 +94,7 @@ export default function App() {
     const handlePopState = () => {
       if (window.location.pathname !== '/welcome') {
         setSignedUpEmail(null);
+        setIsWelcomeBack(false);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -103,6 +115,7 @@ export default function App() {
       <WelcomePage
         email={signedUpEmail}
         referralProfile={userProfile}
+        isWelcomeBack={isWelcomeBack}
         onBackToHome={handleBackToHome}
       />
     );

@@ -16,6 +16,8 @@ import {
   getCurrentUserProfile,
   getAllCodes,
   getShareableUrl,
+  claimOrGetPremiumRewardCode,
+  simulateAddReferral,
   type UserReferralProfile,
 } from '../lib/referral';
 
@@ -23,11 +25,19 @@ interface WelcomePageProps {
   email?: string;
   onBackToHome: () => void;
   referralProfile?: UserReferralProfile | null;
+  isWelcomeBack?: boolean;
 }
 
-export function WelcomePage({ email, onBackToHome, referralProfile: propProfile }: WelcomePageProps) {
+export function WelcomePage({
+  email,
+  onBackToHome,
+  referralProfile: propProfile,
+  isWelcomeBack,
+}: WelcomePageProps) {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedPromoCode, setCopiedPromoCode] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Retrieve user profile (from props or storage)
   const profile = propProfile || getCurrentUserProfile(email);
@@ -38,6 +48,11 @@ export function WelcomePage({ email, onBackToHome, referralProfile: propProfile 
   const usedCount = codeRecord ? codeRecord.usedCount : 0;
   const maxUses = codeRecord ? codeRecord.maxUses : 5;
   const remaining = Math.max(0, maxUses - usedCount);
+
+  // If 5 people joined, retrieve or generate their one-time promo code!
+  const promoCode =
+    profile?.premiumRewardCode ||
+    (usedCount >= 5 && profile?.email ? claimOrGetPremiumRewardCode(profile.email) : null);
 
   const handleCopyCode = () => {
     if (!profile?.referralCode) return;
@@ -51,6 +66,19 @@ export function WelcomePage({ email, onBackToHome, referralProfile: propProfile 
     navigator.clipboard.writeText(getShareableUrl(profile.referralCode));
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleCopyPromoCode = () => {
+    if (!promoCode) return;
+    navigator.clipboard.writeText(promoCode);
+    setCopiedPromoCode(true);
+    setTimeout(() => setCopiedPromoCode(false), 2000);
+  };
+
+  const handleSimulateFriend = () => {
+    if (!profile?.referralCode) return;
+    simulateAddReferral(profile.referralCode);
+    setRefreshKey((k) => k + 1);
   };
 
   return (
@@ -105,6 +133,14 @@ export function WelcomePage({ email, onBackToHome, referralProfile: propProfile 
             </>
           )}
         </h1>
+
+        {/* Welcome Back Banner for Returning Members */}
+        {isWelcomeBack && (
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 backdrop-blur-md border border-emerald-400 text-emerald-950 text-xs sm:text-sm font-semibold mb-4 shadow-sm animate-fade-in">
+            <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+            <span>Welcome back! You're already signed up. Here is your referral pass:</span>
+          </div>
+        )}
 
         {/* Step Progress Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-black/10 text-[11px] sm:text-xs font-mono font-medium tracking-widest text-neutral-800 uppercase mb-6 sm:mb-7 shadow-xs select-none">
@@ -192,20 +228,71 @@ export function WelcomePage({ email, onBackToHome, referralProfile: propProfile 
               </div>
             </div>
 
-            {/* 1 Month Free Premium Reward Banner */}
-            <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-amber-500/15 border border-amber-300 rounded-2xl mb-4 text-left shadow-2xs">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Gift className="w-5 h-5" />
+            {/* UNLOCKED ONE-TIME CODE CARD (Shown when 5 friends have joined!) */}
+            {promoCode ? (
+              <div className="bg-gradient-to-br from-amber-500/15 via-emerald-500/10 to-amber-500/15 border-2 border-amber-400/90 rounded-2xl p-4 sm:p-5 mb-4 text-left shadow-lg relative overflow-hidden animate-fade-in">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-amber-500 text-white rounded-lg shadow-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-amber-900 font-bold block">
+                        Goal Reached: 5 of 5 Friends Joined!
+                      </span>
+                      <h5 className="text-sm sm:text-base font-serif-display font-bold text-neutral-950">
+                        Your 1 Month Free Premium Code
+                      </h5>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 bg-emerald-700 text-white rounded-full font-bold shadow-2xs">
+                    One-Time Use
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white px-3.5 py-2.5 rounded-xl border border-amber-300 mb-2.5 shadow-xs">
+                  <span className="font-mono text-lg sm:text-xl font-bold tracking-widest text-neutral-950 select-all">
+                    {promoCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyPromoCode}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                  >
+                    {copiedPromoCode ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Code Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-[11px] sm:text-xs text-neutral-800 leading-snug">
+                  🎉 <strong>Redemption details:</strong> This is your unique one-time code. Enter it at checkout when Bookarra launches to enjoy your first month of Premium completely free.
+                </p>
               </div>
-              <div className="flex-1 text-xs leading-snug">
-                <span className="font-bold text-amber-950 block text-sm">
-                  1 Month Free Bookarra Premium
-                </span>
-                <span className="text-amber-950/80 font-medium">
-                  Get 5 people to join with your invite code and receive 1 month of Bookarra Premium completely free at launch!
-                </span>
+            ) : (
+              /* 1 Month Free Premium Reward Banner (In Progress) */
+              <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-amber-500/15 border border-amber-300 rounded-2xl mb-4 text-left shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div className="flex-1 text-xs leading-snug">
+                  <span className="font-bold text-amber-950 block text-sm">
+                    1 Month Free Bookarra Premium
+                  </span>
+                  <span className="text-amber-950/80 font-medium">
+                    Get 5 people to join with your invite code to unlock an exclusive one-time use code for 1 month of Bookarra Premium free!
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* 5-Slot Visual Tracker */}
             <div className="space-y-2 mb-4 bg-white/70 rounded-2xl p-3.5 border border-neutral-200/70">
@@ -236,24 +323,41 @@ export function WelcomePage({ email, onBackToHome, referralProfile: propProfile 
                 })}
               </div>
 
-              <div className="text-[11px] font-medium text-right pt-0.5">
-                {usedCount >= maxUses ? (
-                  <span className="text-emerald-700 font-bold flex items-center justify-end gap-1">
-                    <Check className="w-3.5 h-3.5" />
-                    1 Month Free Premium Reward Unlocked!
-                  </span>
+              <div className="flex items-center justify-between pt-1">
+                {usedCount < maxUses ? (
+                  <button
+                    type="button"
+                    onClick={handleSimulateFriend}
+                    className="text-[10px] text-neutral-500 hover:text-black hover:underline cursor-pointer transition-colors"
+                    title="Test simulator: click to simulate a friend using your code"
+                  >
+                    + Simulate friend joining (Test)
+                  </button>
                 ) : (
-                  <span className="text-amber-800">
-                    {remaining} more friend{remaining === 1 ? '' : 's'} to unlock 1 Month Free Premium
+                  <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                    <Check className="w-3 h-3" /> All 5 slots filled
                   </span>
                 )}
+
+                <div className="text-[11px] font-medium text-right">
+                  {usedCount >= maxUses ? (
+                    <span className="text-emerald-700 font-bold flex items-center justify-end gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      One-Time Code Ready!
+                    </span>
+                  ) : (
+                    <span className="text-amber-800">
+                      {remaining} more friend{remaining === 1 ? '' : 's'} to unlock code
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Crucial Rule Explanation */}
             <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/60 text-[11px] sm:text-xs text-amber-950 leading-relaxed">
-              <strong>How It Works:</strong> Share your code with 5 people. When all 5 join, you earn{' '}
-              <span className="font-bold underline decoration-amber-400">1 month free of Bookarra Premium</span>.
+              <strong>How It Works:</strong> Share your code with 5 people. When all 5 join, you get a{' '}
+              <span className="font-bold underline decoration-amber-400">one-time use code for 1 month free of Bookarra Premium</span>.
               Plus, exactly 1 out of your 5 referrals will unlock their own code to invite others!
             </div>
           </div>
