@@ -160,7 +160,7 @@ export default function App() {
 
             <a
               id="footer-instagram-link"
-              href="https://www.instagram.com/bookarra1351/"
+              href="https://www.instagram.com/book_arra/"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 font-medium hover:text-black hover:underline underline-offset-4 transition-colors"

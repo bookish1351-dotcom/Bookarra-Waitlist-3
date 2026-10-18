@@ -65,8 +65,8 @@ export function ContactModal({ isOpen, onClose, onCopyEmail }: ContactModalProps
     {
       id: 'contact-instagram',
       name: 'Instagram',
-      detail: '@bookarra1351',
-      href: 'https://www.instagram.com/bookarra1351/',
+      detail: '@book_arra',
+      href: 'https://www.instagram.com/book_arra/',
       icon: Instagram,
       actionType: 'link',
       bgColor: 'bg-purple-50/70',
