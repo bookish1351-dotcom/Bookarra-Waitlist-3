@@ -193,7 +193,7 @@ export function WaitlistModal({
                     <span>Your Exclusive Invite Code</span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 bg-black text-white rounded-full font-bold">
-                    5 Invites
+                    Unlimited Invites
                   </span>
                 </div>
 
@@ -230,7 +230,7 @@ export function WaitlistModal({
                       Bonus Perk: 1 Month Free Premium!
                     </span>
                     <span className="text-amber-900/90 font-medium">
-                      Get all 5 people to join with your code to receive a unique one-time use code for 1 month of Bookarra Premium for free.
+                      Get 5 people to join with your code to receive a unique one-time use code for 1 month of Bookarra Premium for free.
                     </span>
                   </div>
                 </div>
@@ -238,7 +238,7 @@ export function WaitlistModal({
                 {/* 5-Invite Slots Visual Tracker */}
                 <div className="space-y-1.5 mb-3">
                   <div className="flex items-center justify-between text-[11px] text-neutral-600 font-medium">
-                    <span>Invite capacity:</span>
+                    <span>Goal progress:</span>
                     <span className="font-mono font-semibold text-neutral-900">
                       0 of 5 friends joined
                     </span>
@@ -256,7 +256,7 @@ export function WaitlistModal({
 
                 {/* Referral Rule Explanation */}
                 <p className="text-[11px] text-neutral-500 leading-snug">
-                  <strong className="text-neutral-800">Rule:</strong> Share with 5 people. Only 1 out of your 5 referrals will receive their own invite code to pass on.
+                  <strong className="text-neutral-800">Rule:</strong> Share with as many friends as you like — all signups are tracked! Reach 5 to unlock 1 month free Premium, and 1 in 5 referrals unlocks their own invite code.
                 </p>
 
                 <button

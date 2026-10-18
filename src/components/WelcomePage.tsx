@@ -170,13 +170,13 @@ export function WelcomePage({
                       : 'Exclusive Waitlist Pass'}
                   </span>
                   <h4 className="text-base sm:text-lg font-serif-display font-bold text-neutral-950">
-                    Your 5-Person Invite Code
+                    Your Exclusive Invite Code
                   </h4>
                 </div>
               </div>
 
               <span className="text-[11px] font-mono font-bold bg-neutral-100 text-neutral-800 px-2.5 py-1 rounded-full border border-neutral-200">
-                {remaining} of 5 spots left
+                {usedCount >= 5 ? `${usedCount} Friends Tracked` : `${remaining} to 1-Month Free`}
               </span>
             </div>
 
@@ -299,10 +299,10 @@ export function WelcomePage({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-neutral-700 font-medium flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5 text-neutral-500" />
-                  Friends joined with your code:
+                  Total friends joined with your code:
                 </span>
                 <span className="font-mono font-bold text-neutral-900">
-                  {usedCount} / {maxUses}
+                  {usedCount} {usedCount === 1 ? 'friend' : 'friends'} {usedCount >= 5 ? '(Goal reached!)' : '/ 5'}
                 </span>
               </div>
 
@@ -317,48 +317,99 @@ export function WelcomePage({
                           ? 'bg-black shadow-xs'
                           : 'bg-neutral-200/90 border border-black/5'
                       }`}
-                      title={`Invite Slot ${slot} (${filled ? 'Claimed' : 'Available'})`}
+                      title={`Milestone Slot ${slot} (${filled ? 'Claimed' : 'Available'})`}
                     />
                   );
                 })}
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                {usedCount < maxUses ? (
-                  <button
-                    type="button"
-                    onClick={handleSimulateFriend}
-                    className="text-[10px] text-neutral-500 hover:text-black hover:underline cursor-pointer transition-colors"
-                    title="Test simulator: click to simulate a friend using your code"
-                  >
-                    + Simulate friend joining (Test)
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> All 5 slots filled
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={handleSimulateFriend}
+                  className="text-[10px] text-neutral-500 hover:text-black hover:underline cursor-pointer transition-colors"
+                  title="Test simulator: click to simulate a friend using your code"
+                >
+                  + Simulate friend joining (Test)
+                </button>
 
                 <div className="text-[11px] font-medium text-right">
-                  {usedCount >= maxUses ? (
+                  {usedCount >= 5 ? (
                     <span className="text-emerald-700 font-bold flex items-center justify-end gap-1">
                       <Check className="w-3.5 h-3.5" />
-                      One-Time Code Ready!
+                      {usedCount > 5 ? `${usedCount} Tracked (+${usedCount - 5} bonus)` : '1-Month Code Ready!'}
                     </span>
                   ) : (
                     <span className="text-amber-800">
-                      {remaining} more friend{remaining === 1 ? '' : 's'} to unlock code
+                      {remaining} more to unlock 1-month code
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* Tracked Referrals Activity List */}
+              {usedCount > 0 && (
+                <div className="mt-3.5 pt-3.5 border-t border-neutral-200/80">
+                  <div className="flex items-center justify-between text-xs font-semibold text-neutral-800 mb-2">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-neutral-600" />
+                      Tracked Friends Signed Up ({usedCount})
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-500 font-normal">
+                      Tracking active
+                    </span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                    {codeRecord?.referredEmails && codeRecord.referredEmails.length > 0 ? (
+                      codeRecord.referredEmails.map((refEmail, idx) => {
+                        const slotNum = idx + 1;
+                        const isSlotWinner =
+                          ((slotNum - 1) % 5) + 1 === codeRecord.luckySlotNumber;
+                        const parts = refEmail.split('@');
+                        const masked =
+                          parts.length === 2
+                            ? `${parts[0].slice(0, 3)}***@${parts[1]}`
+                            : refEmail;
+                        return (
+                          <div
+                            key={`${refEmail}-${idx}`}
+                            className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-neutral-50 border border-neutral-200/70 text-xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center text-[10px] font-mono font-bold">
+                                #{slotNum}
+                              </span>
+                              <span className="font-mono text-neutral-800 font-medium">
+                                {masked}
+                              </span>
+                            </div>
+                            {isSlotWinner ? (
+                              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                Unlocked Invite Code 🎟️
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-neutral-500">
+                                Waitlist Confirmed
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-xs text-neutral-500 italic">
+                        {usedCount} referrals recorded under this code.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Crucial Rule Explanation */}
             <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/60 text-[11px] sm:text-xs text-amber-950 leading-relaxed">
-              <strong>How It Works:</strong> Share your code with 5 people. When all 5 join, you get a{' '}
+              <strong>How It Works:</strong> Share your code with as many friends as you like — every referral is tracked. When you reach 5 friends, you unlock a{' '}
               <span className="font-bold underline decoration-amber-400">one-time use code for 1 month free of Bookarra Premium</span>.
-              Plus, exactly 1 out of your 5 referrals will unlock their own code to invite others!
+              Plus, 1 out of every 5 referrals unlocks their own code to invite others!
             </div>
           </div>
         ) : profile?.usedReferralCode ? (

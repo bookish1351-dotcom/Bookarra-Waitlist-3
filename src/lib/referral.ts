@@ -129,8 +129,7 @@ export function simulateAddReferral(code: string): { success: boolean; newCount:
   const all = getAllCodes();
   const rec = all[cleanCode];
   if (!rec) return { success: false, newCount: 0 };
-  if (rec.usedCount >= rec.maxUses) return { success: false, newCount: rec.usedCount };
-
+  // No upper limit — allow tracking more than 5 referrals
   rec.usedCount += 1;
   rec.referredEmails.push(`friend${rec.usedCount}@example.com`);
   saveCode(rec);
@@ -235,12 +234,7 @@ export function checkReferralCode(rawCode: string): {
       error: `Code "${code}" was not found. Please check for typos.`,
     };
   }
-  if (record.usedCount >= record.maxUses) {
-    return {
-      valid: false,
-      error: `Code "${code}" has already reached its 5-person limit!`,
-    };
-  }
+  // Referral codes can be used more than 5 times so creators can track all referrals!
   return { valid: true, record };
 }
 
@@ -405,8 +399,8 @@ export function processReferralSignup(
     }
   }
 
-  // Check if this person is the lucky 1 out of 5!
-  const isWinner = slotNumber === referrerRecord.luckySlotNumber;
+  // Check if this person is the lucky 1 out of 5 in each cohort of 5 referrals!
+  const isWinner = ((slotNumber - 1) % 5) + 1 === referrerRecord.luckySlotNumber;
 
   if (isWinner) {
     // 1 out of 5 WINNER: Gets their own code to share with 5 people!
