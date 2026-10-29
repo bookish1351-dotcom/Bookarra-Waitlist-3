@@ -17,7 +17,6 @@ import {
   getAllCodes,
   getShareableUrl,
   claimOrGetPremiumRewardCode,
-  simulateAddReferral,
   type UserReferralProfile,
 } from '../lib/referral';
 
@@ -37,7 +36,6 @@ export function WelcomePage({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedPromoCode, setCopiedPromoCode] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // Retrieve user profile (from props or storage)
   const profile = propProfile || getCurrentUserProfile(email);
@@ -73,12 +71,6 @@ export function WelcomePage({
     navigator.clipboard.writeText(promoCode);
     setCopiedPromoCode(true);
     setTimeout(() => setCopiedPromoCode(false), 2000);
-  };
-
-  const handleSimulateFriend = () => {
-    if (!profile?.referralCode) return;
-    simulateAddReferral(profile.referralCode);
-    setRefreshKey((k) => k + 1);
   };
 
   return (
@@ -323,16 +315,7 @@ export function WelcomePage({
                 })}
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={handleSimulateFriend}
-                  className="text-[10px] text-neutral-500 hover:text-black hover:underline cursor-pointer transition-colors"
-                  title="Test simulator: click to simulate a friend using your code"
-                >
-                  + Simulate friend joining (Test)
-                </button>
-
+              <div className="flex items-center justify-end pt-1">
                 <div className="text-[11px] font-medium text-right">
                   {usedCount >= 5 ? (
                     <span className="text-emerald-700 font-bold flex items-center justify-end gap-1">

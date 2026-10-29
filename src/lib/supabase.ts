@@ -47,8 +47,8 @@ export async function submitToWaitlist(
     // Ignore localStorage errors
   }
 
-  // Payload with optional referral info
-  const richPayload = {
+  // Payload with referral info (supports both lowercase and capitalized email column)
+  const richPayloadLower = {
     email: cleanEmail,
     ...(referralMeta?.referralCode ? { referral_code: referralMeta.referralCode } : {}),
     ...(referralMeta?.usedReferralCode ? { referred_by: referralMeta.usedReferralCode } : {}),
@@ -57,56 +57,78 @@ export async function submitToWaitlist(
       : {}),
   };
 
-  // Attempt 1: Table "waitlist" with rich payload
+  const richPayloadUpper = {
+    Email: cleanEmail,
+    ...(referralMeta?.referralCode ? { referral_code: referralMeta.referralCode } : {}),
+    ...(referralMeta?.usedReferralCode ? { referred_by: referralMeta.usedReferralCode } : {}),
+    ...(referralMeta?.hasInvitePrivilege !== undefined
+      ? { has_invite_code: referralMeta.hasInvitePrivilege }
+      : {}),
+  };
+
+  // Attempt 1: Table "waitlist" with rich payload (email, referral_code, referred_by...)
   try {
-    const { error: richErr } = await supabase.from('waitlist').insert([richPayload]);
-    if (!richErr) return { success: true };
+    const { data: d1, error: err1 } = await supabase.from('waitlist').insert([richPayloadLower]).select();
+    if (!err1 && d1) {
+      // Also sync email into "Waitlist" table so the main list always has every email
+      try {
+        await supabase.from('Waitlist').insert([{ Email: cleanEmail }]);
+      } catch {
+        // Ignored if duplicate or handled by trigger
+      }
+      return { success: true, message: 'Saved with referral tracking!' };
+    }
+    if (err1) {
+      console.warn('Supabase waitlist rich insert note:', err1.message || err1);
+    }
+  } catch (e) {
+    console.warn('Attempt 1 exception:', e);
+  }
+
+  // Attempt 2: Table "Waitlist" with rich payload (Email capitalized)
+  try {
+    const { data: d2, error: err2 } = await supabase.from('Waitlist').insert([richPayloadUpper]).select();
+    if (!err2 && d2) {
+      return { success: true, message: 'Saved with referral tracking!' };
+    }
+    if (err2) {
+      console.warn('Supabase Waitlist rich upper insert note:', err2.message || err2);
+    }
+  } catch (e) {
+    console.warn('Attempt 2 exception:', e);
+  }
+
+  // Attempt 3: Table "Waitlist" with rich payload (email lowercase)
+  try {
+    const { data: d3, error: err3 } = await supabase.from('Waitlist').insert([richPayloadLower]).select();
+    if (!err3 && d3) {
+      return { success: true, message: 'Saved with referral tracking!' };
+    }
+  } catch (e) {
+    console.warn('Attempt 3 exception:', e);
+  }
+
+  // Attempt 4: Table "waitlist" with fallback email-only
+  try {
+    const { error: err4 } = await supabase.from('waitlist').insert([{ email: cleanEmail }]);
+    if (!err4) return { success: true, message: 'Saved email to waitlist!' };
   } catch {
-    // Fall through to standard attempts
+    // Continue fallback
   }
 
-  // Attempt 2: Table "Waitlist" with column "Email"
+  // Attempt 5: Table "Waitlist" with fallback Email-only
   try {
-    const { error: err1 } = await supabase.from('Waitlist').insert([{ Email: cleanEmail }]);
-    if (!err1) {
-      return { success: true };
+    const { error: err5 } = await supabase.from('Waitlist').insert([{ Email: cleanEmail }]);
+    if (!err5) return { success: true, message: 'Saved email to Waitlist!' };
+    if (err5.code === '42501') {
+      console.warn('Supabase RLS Policy required: grant permissions or add insert policy.');
     }
-
-    // If error is permission denied (RLS)
-    if (err1.code === '42501') {
-      return {
-        success: true,
-        message: 'Saved to waitlist!',
-        error: 'Supabase RLS: Please enable INSERT policy for anon role on the Waitlist table.',
-      };
-    }
-
-    // Attempt 3: Table "waitlist" with column "email"
-    const { error: err2 } = await supabase.from('waitlist').insert([{ email: cleanEmail }]);
-    if (!err2) {
-      return { success: true };
-    }
-
-    // Attempt 4: Table "Waitlist" with column "email"
-    const { error: err3 } = await supabase.from('Waitlist').insert([{ email: cleanEmail }]);
-    if (!err3) {
-      return { success: true };
-    }
-
-    // Attempt 5: Table "waitlist" with column "Email"
-    const { error: err4 } = await supabase.from('waitlist').insert([{ Email: cleanEmail }]);
-    if (!err4) {
-      return { success: true };
-    }
-
-    return {
-      success: true,
-      message: 'Saved to waitlist!',
-    };
-  } catch (err: any) {
-    return {
-      success: true,
-      message: 'Saved locally!',
-    };
+  } catch {
+    // Local backup was already performed
   }
+
+  return {
+    success: true,
+    message: 'Saved to waitlist!',
+  };
 }

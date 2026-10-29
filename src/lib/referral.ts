@@ -120,35 +120,7 @@ export function claimOrGetPremiumRewardCode(email?: string): string | null {
   return null;
 }
 
-/**
- * Helper to simulate a friend joining with a code (useful for testing the 5/5 reward)
- */
-export function simulateAddReferral(code: string): { success: boolean; newCount: number; promoCode?: string } {
-  if (typeof window === 'undefined') return { success: false, newCount: 0 };
-  const cleanCode = code.trim().toUpperCase();
-  const all = getAllCodes();
-  const rec = all[cleanCode];
-  if (!rec) return { success: false, newCount: 0 };
-  // No upper limit — allow tracking more than 5 referrals
-  rec.usedCount += 1;
-  rec.referredEmails.push(`friend${rec.usedCount}@example.com`);
-  saveCode(rec);
 
-  let unlockedPromo: string | undefined;
-  if (rec.usedCount >= 5) {
-    const profiles = getAllProfiles();
-    const refEmail = rec.ownerEmail.toLowerCase();
-    const refProf = profiles[refEmail] || getCurrentUserProfile();
-    if (refProf && !refProf.premiumRewardCode) {
-      unlockedPromo = generatePremiumPromoCode();
-      refProf.premiumRewardCode = unlockedPromo;
-      refProf.premiumRewardClaimedAt = new Date().toISOString();
-      saveUserProfile(refProf);
-    }
-  }
-
-  return { success: true, newCount: rec.usedCount, promoCode: unlockedPromo };
-}
 
 export function getAllCodes(): Record<string, ReferralCodeRecord> {
   if (typeof window === 'undefined') return INITIAL_CODES;
