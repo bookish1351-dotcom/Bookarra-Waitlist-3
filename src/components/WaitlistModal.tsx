@@ -82,21 +82,22 @@ export function WaitlistModal({
 
     const trimmedCode = referralCode.trim().toUpperCase();
 
-    // If a referral code was typed, validate it first
-    if (trimmedCode) {
-      const validation = checkReferralCode(trimmedCode);
-      if (!validation.valid) {
-        setError(validation.error || 'Invalid referral code.');
-        return;
-      }
-    }
-
     setLoading(true);
     setError('');
 
     try {
+      // If a referral code was typed, validate it against Supabase/local first
+      if (trimmedCode) {
+        const validation = await checkReferralCode(trimmedCode);
+        if (!validation.valid) {
+          setError(validation.error || 'Invalid referral code.');
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. Process referral engine rules
-      const refResult = processReferralSignup(cleanEmail, trimmedCode || undefined);
+      const refResult = await processReferralSignup(cleanEmail, trimmedCode || undefined);
       if (!refResult.success) {
         setError(refResult.error || 'Could not process referral code.');
         setLoading(false);

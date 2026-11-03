@@ -1,14 +1,8 @@
 /**
  * Bookarra Referral Engine
- * 
- * Rules:
- * 1. Direct signups (without a referral code) automatically get a referral code.
- * 2. Each code can be shared with up to 5 people.
- * 3. Out of every 5 people who join using a referral code, ONLY 1 person
- *    gets to generate and give out their own referral code (the "Golden Ticket").
- *    The other 4 people are secured on the waitlist with priority status, but do
- *    not receive their own invite codes.
  */
+
+import { supabase } from './supabase';
 
 export interface ReferralCodeRecord {
   code: string;
@@ -187,40 +181,124 @@ export function getCurrentUserProfile(email?: string): UserReferralProfile | nul
 }
 
 /**
- * Validates a referral code input.
+ * Validates a referral code input against both local cache and Supabase waitlist.
  */
-export function checkReferralCode(rawCode: string): {
+export async function checkReferralCode(rawCode: string): Promise<{
   valid: boolean;
   record?: ReferralCodeRecord;
   error?: string;
-} {
+}> {
   const code = rawCode.trim().toUpperCase();
   if (!code) {
     return { valid: false, error: 'Please enter a referral code.' };
   }
+
+  // 1. Check local starter/cached codes
   const all = getAllCodes();
-  const record = all[code];
-  if (!record) {
-    return {
-      valid: false,
-      error: `Code "${code}" was not found. Please check for typos.`,
-    };
+  let record = all[code];
+
+  // 2. Query Supabase "waitlist" table for this code
+  try {
+    const { data: owners, error: ownerErr } = await supabase
+      .from('waitlist')
+      .select('id, email, referral_code, created_at')
+      .eq('referral_code', code)
+      .limit(1);
+
+    if (!ownerErr && owners && owners.length > 0) {
+      const ownerRow = owners[0];
+
+      // Query all friends who joined using this code
+      const { data: referredUsers } = await supabase
+        .from('waitlist')
+        .select('email')
+        .eq('referred_by', code);
+
+      const referredEmails = referredUsers?.map((u: any) => u.email).filter(Boolean) || [];
+
+      record = {
+        code,
+        ownerEmail: ownerRow.email,
+        maxUses: 5,
+        usedCount: referredEmails.length,
+        referredEmails,
+        luckySlotNumber: 1,
+        createdAt: ownerRow.created_at || new Date().toISOString(),
+      };
+      saveCode(record);
+    }
+  } catch (err) {
+    console.warn('Supabase code lookup note:', err);
   }
-  // Referral codes can be used more than 5 times so creators can track all referrals!
-  return { valid: true, record };
+
+  if (record) {
+    return { valid: true, record };
+  }
+
+  return {
+    valid: false,
+    error: `Code "${code}" was not found. Please check for typos.`,
+  };
 }
 
 /**
  * Core signup processor enforcing the 1-in-5 referral privilege rule
  */
-export function processReferralSignup(
+export async function processReferralSignup(
   email: string,
   enteredCode?: string
-): ReferralSignupResult {
+): Promise<ReferralSignupResult> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanCode = enteredCode?.trim().toUpperCase();
 
-  // If user already signed up previously, return their existing profile
+  // 1. Check if user already exists in Supabase
+  try {
+    const { data: existingRows } = await supabase
+      .from('waitlist')
+      .select('*')
+      .eq('email', cleanEmail)
+      .limit(1);
+
+    if (existingRows && existingRows.length > 0) {
+      const p = existingRows[0];
+      const hasCode = Boolean(p.has_invite_code || p.referral_code);
+      let remaining = 5;
+
+      if (p.referral_code) {
+        const { data: refs } = await supabase
+          .from('waitlist')
+          .select('email')
+          .eq('referred_by', p.referral_code);
+        const count = refs?.length || 0;
+        remaining = Math.max(0, 5 - count);
+      }
+
+      const existingProfile: UserReferralProfile = {
+        email: cleanEmail,
+        hasOwnCode: hasCode,
+        referralCode: p.referral_code || undefined,
+        usedReferralCode: p.referred_by || undefined,
+        isGoldenTicketWinner: hasCode && Boolean(p.referred_by),
+        createdAt: p.created_at || new Date().toISOString(),
+      };
+      saveUserProfile(existingProfile);
+
+      return {
+        success: true,
+        isExistingUser: true,
+        hasOwnCode: hasCode,
+        referralCode: p.referral_code || undefined,
+        usedReferralCode: p.referred_by || undefined,
+        isGoldenTicketWinner: hasCode && Boolean(p.referred_by),
+        remainingInvites: remaining,
+        message: "You're already on the waitlist! Opening your invite pass...",
+      };
+    }
+  } catch (e) {
+    console.warn('Supabase existing check note:', e);
+  }
+
+  // 2. Check local profiles cache
   const existingProfiles = getAllProfiles();
   if (existingProfiles[cleanEmail]) {
     const p = existingProfiles[cleanEmail];
@@ -257,7 +335,6 @@ export function processReferralSignup(
           (typeof item === 'object' && item?.email?.toLowerCase() === cleanEmail)
       );
       if (found) {
-        // Synthesize an existing profile so they get their referral codes
         let newCode = generateCode();
         const all = getAllCodes();
         while (all[newCode]) {
@@ -307,7 +384,6 @@ export function processReferralSignup(
       newCode = generateCode();
     }
 
-    // 1 lucky slot out of 5 gets the privilege when friends use it
     const luckySlotNumber = Math.floor(Math.random() * 5) + 1;
 
     const newRecord: ReferralCodeRecord = {
@@ -342,7 +418,7 @@ export function processReferralSignup(
   // CASE B: Signed up WITH a referral code
   // Rule: Verify code. Only 1 out of 5 gets their own referral code.
   // -------------------------------------------------------------
-  const validation = checkReferralCode(cleanCode);
+  const validation = await checkReferralCode(cleanCode);
   if (!validation.valid || !validation.record) {
     return {
       success: false,

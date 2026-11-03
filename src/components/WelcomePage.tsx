@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Check,
   ChevronLeft,
@@ -12,6 +12,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { BackgroundVideo } from './BackgroundVideo';
+import { supabase } from '../lib/supabase';
 import {
   getCurrentUserProfile,
   getAllCodes,
@@ -37,13 +38,67 @@ export function WelcomePage({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedPromoCode, setCopiedPromoCode] = useState(false);
 
-  // Retrieve user profile (from props or storage)
-  const profile = propProfile || getCurrentUserProfile(email);
+  // Retrieve user profile (from props, storage, or live Supabase)
+  const [liveProfile, setLiveProfile] = useState<UserReferralProfile | null>(
+    propProfile || getCurrentUserProfile(email)
+  );
+
+  const profile = liveProfile;
 
   // If user has their own code, look up active stats
   const allCodes = getAllCodes();
   const codeRecord = profile?.referralCode ? allCodes[profile.referralCode] : null;
-  const usedCount = codeRecord ? codeRecord.usedCount : 0;
+  const [liveReferredEmails, setLiveReferredEmails] = useState<string[]>(
+    codeRecord?.referredEmails || []
+  );
+  const [liveCount, setLiveCount] = useState<number>(codeRecord ? codeRecord.usedCount : 0);
+
+  // Sync profile & referrals directly from Supabase
+  useEffect(() => {
+    const targetEmail = (email || profile?.email || '').trim().toLowerCase();
+    if (!targetEmail) return;
+
+    // 1. Fetch user row from Supabase
+    supabase
+      .from('waitlist')
+      .select('*')
+      .eq('email', targetEmail)
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const row = data[0];
+          const hasCode = Boolean(row.has_invite_code || row.referral_code);
+          const updatedProf: UserReferralProfile = {
+            email: targetEmail,
+            hasOwnCode: hasCode,
+            referralCode: row.referral_code || undefined,
+            usedReferralCode: row.referred_by || undefined,
+            isGoldenTicketWinner: hasCode && Boolean(row.referred_by),
+            createdAt: row.created_at,
+            premiumRewardCode: profile?.premiumRewardCode,
+          };
+          setLiveProfile(updatedProf);
+
+          // 2. Fetch all friends who joined with this code from Supabase
+          if (row.referral_code) {
+            supabase
+              .from('waitlist')
+              .select('email, created_at')
+              .eq('referred_by', row.referral_code)
+              .order('id', { ascending: true })
+              .then(({ data: refs }) => {
+                if (refs) {
+                  const emails = refs.map((r: any) => r.email).filter(Boolean);
+                  setLiveReferredEmails(emails);
+                  setLiveCount(emails.length);
+                }
+              });
+          }
+        }
+      });
+  }, [email, profile?.referralCode]);
+
+  const usedCount = Math.max(liveCount, codeRecord?.usedCount || 0);
   const maxUses = codeRecord ? codeRecord.maxUses : 5;
   const remaining = Math.max(0, maxUses - usedCount);
 
@@ -343,11 +398,23 @@ export function WelcomePage({
                     </span>
                   </div>
                   <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
-                    {codeRecord?.referredEmails && codeRecord.referredEmails.length > 0 ? (
-                      codeRecord.referredEmails.map((refEmail, idx) => {
+                    {(() => {
+                      const displayEmails =
+                        liveReferredEmails.length > 0
+                          ? liveReferredEmails
+                          : codeRecord?.referredEmails || [];
+
+                      if (displayEmails.length === 0) {
+                        return (
+                          <div className="text-xs text-neutral-500 italic">
+                            {usedCount} referrals recorded under this code.
+                          </div>
+                        );
+                      }
+
+                      return displayEmails.map((refEmail, idx) => {
                         const slotNum = idx + 1;
-                        const isSlotWinner =
-                          ((slotNum - 1) % 5) + 1 === codeRecord.luckySlotNumber;
+                        const isSlotWinner = ((slotNum - 1) % 5) + 1 === 1;
                         const parts = refEmail.split('@');
                         const masked =
                           parts.length === 2
@@ -377,12 +444,8 @@ export function WelcomePage({
                             )}
                           </div>
                         );
-                      })
-                    ) : (
-                      <div className="text-xs text-neutral-500 italic">
-                        {usedCount} referrals recorded under this code.
-                      </div>
-                    )}
+                      });
+                    })()}
                   </div>
                 </div>
               )}
