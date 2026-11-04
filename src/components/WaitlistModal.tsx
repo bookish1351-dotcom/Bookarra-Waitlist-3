@@ -74,6 +74,7 @@ export function WaitlistModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setError('Please enter a valid email address.');
