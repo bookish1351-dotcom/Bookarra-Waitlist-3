@@ -10,11 +10,14 @@ import {
   Users,
   Award,
   Gift,
+  BookOpen,
+  ArrowRight,
 } from 'lucide-react';
 import { BackgroundVideo } from './BackgroundVideo';
 import { supabase } from '../lib/supabase';
 import {
   getCurrentUserProfile,
+  saveUserProfile,
   getAllCodes,
   getShareableUrl,
   claimOrGetPremiumRewardCode,
@@ -26,6 +29,7 @@ interface WelcomePageProps {
   onBackToHome: () => void;
   referralProfile?: UserReferralProfile | null;
   isWelcomeBack?: boolean;
+  onOpenFreeBooksCatalogue?: () => void;
 }
 
 export function WelcomePage({
@@ -33,6 +37,7 @@ export function WelcomePage({
   onBackToHome,
   referralProfile: propProfile,
   isWelcomeBack,
+  onOpenFreeBooksCatalogue,
 }: WelcomePageProps) {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -62,7 +67,7 @@ export function WelcomePage({
     supabase
       .from('waitlist')
       .select('*')
-      .eq('email', targetEmail)
+      .ilike('email', targetEmail)
       .limit(1)
       .then(({ data }) => {
         if (data && data.length > 0) {
@@ -78,6 +83,7 @@ export function WelcomePage({
             premiumRewardCode: profile?.premiumRewardCode,
           };
           setLiveProfile(updatedProf);
+          saveUserProfile(updatedProf);
 
           // 2. Fetch all friends who joined with this code from Supabase
           if (row.referral_code) {
@@ -525,6 +531,64 @@ export function WelcomePage({
           </div>
         </div>
 
+        {/* Free Books Early Reader Perk Banner */}
+        <div className="w-full max-w-md bg-gradient-to-br from-amber-50/95 via-white/95 to-orange-50/90 backdrop-blur-md rounded-3xl border border-amber-300/80 p-5 sm:p-6 shadow-xl mb-6 text-left transition-all hover:shadow-2xl">
+          <div className="flex items-start gap-4">
+            {/* Book Stack: First two books for clean visual presentation */}
+            <div
+              id="welcome-free-books-thumbs"
+              onClick={onOpenFreeBooksCatalogue}
+              className="relative w-20 h-26 sm:w-22 sm:h-28 shrink-0 cursor-pointer group select-none"
+              title="Click to view and download free books"
+            >
+              {/* Back Book: The Inheritance Games */}
+              <div className="absolute top-1 right-0 w-13 h-20 sm:w-15 sm:h-23 rounded-lg overflow-hidden shadow-md border border-black/15 bg-neutral-900 rotate-6 transform group-hover:rotate-10 transition-transform">
+                <img
+                  src="/assets/aistudio/image_c8220cc2.png"
+                  alt="The Inheritance Games by Jennifer Lynn Barnes"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {/* Front Book: Powerless */}
+              <div className="absolute top-0 left-0 w-13 h-20 sm:w-15 sm:h-23 rounded-lg overflow-hidden shadow-xl border border-black/20 bg-neutral-900 -rotate-6 transform group-hover:-rotate-9 transition-transform z-10">
+                <img
+                  src="/assets/aistudio/image_ce9cecb4.png"
+                  alt="Powerless by Lauren Roberts"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-[10px] font-bold uppercase tracking-wider text-amber-900 mb-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-700" />
+                  <span>Free Books Unlocked</span>
+                </div>
+                <h3
+                  className="font-serif-display text-lg sm:text-xl font-normal text-neutral-950 leading-tight"
+                  style={{ fontFamily: "'DM Serif Display', Georgia, serif" }}
+                >
+                  Free books
+                </h3>
+                <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                  Download complimentary copies of <strong>Powerless</strong> and <strong>The Inheritance Games</strong> (PDFs) right now.
+                </p>
+              </div>
+
+              <button
+                id="welcome-free-books-btn"
+                type="button"
+                onClick={onOpenFreeBooksCatalogue}
+                className="mt-3.5 inline-flex items-center justify-center gap-2 bg-black hover:bg-neutral-800 text-white text-xs sm:text-sm font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs cursor-pointer group"
+              >
+                <span>Browse Free Books</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Narrative Copy */}
         <div className="space-y-3.5 text-center max-w-md px-6 py-5 bg-white/85 backdrop-blur-md rounded-2xl border border-black/10 shadow-lg">
           <p className="font-serif-display text-xl sm:text-2xl text-neutral-950 font-normal leading-snug">
@@ -546,8 +610,18 @@ export function WelcomePage({
         </div>
       </main>
 
-      {/* Footer / Navigation Link */}
-      <footer className="relative z-10 w-full max-w-4xl flex items-center justify-center pb-2 sm:pb-4">
+      {/* Footer / Navigation Links */}
+      <footer className="relative z-10 w-full max-w-4xl flex flex-wrap items-center justify-center gap-3 pb-3 sm:pb-5">
+        <button
+          id="welcome-footer-free-books-btn"
+          type="button"
+          onClick={onOpenFreeBooksCatalogue}
+          className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-neutral-950 hover:text-black transition-all cursor-pointer py-2.5 px-5 rounded-full bg-amber-100/90 hover:bg-amber-200/90 border border-amber-300 shadow-xs hover:shadow-md group"
+        >
+          <BookOpen className="w-4 h-4 text-amber-800" />
+          <span>Free books</span>
+        </button>
+
         <button
           id="back-to-home-btn"
           type="button"

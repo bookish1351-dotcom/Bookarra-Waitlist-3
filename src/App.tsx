@@ -11,7 +11,10 @@ import { FeaturesSection } from './components/FeaturesSection';
 import { WaitlistModal } from './components/WaitlistModal';
 import { LearnMoreModal } from './components/LearnMoreModal';
 import { ContactModal, BOOKARRA_EMAIL_ADDRESS } from './components/ContactModal';
+import { FreeBooksModal } from './components/FreeBooksModal';
+import { FreeBooksSection } from './components/FreeBooksSection';
 import { WelcomePage } from './components/WelcomePage';
+import { FreeBooksCataloguePage } from './components/FreeBooksCataloguePage';
 import { GoalProgressBar } from './components/GoalProgressBar';
 import { getCurrentUserProfile, type UserReferralProfile, type ReferralSignupResult } from './lib/referral';
 import { Instagram, Pin, Video, Mail, Check } from 'lucide-react';
@@ -20,6 +23,7 @@ export default function App() {
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
   const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isFreeBooksOpen, setIsFreeBooksOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
   const [waitlistCount, setWaitlistCount] = useState(9);
   const [incomingReferralCode, setIncomingReferralCode] = useState<string>('');
@@ -36,6 +40,16 @@ export default function App() {
       }
     }
     return null;
+  });
+
+  const [showFreeBooksCatalogue, setShowFreeBooksCatalogue] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        window.location.pathname === '/free-books' ||
+        window.location.search.includes('free-books=true')
+      );
+    }
+    return false;
   });
 
   // Check for ?ref= in URL and auto-open waitlist if an invite link was visited
@@ -82,6 +96,7 @@ export default function App() {
   const handleBackToHome = () => {
     setSignedUpEmail(null);
     setIsWelcomeBack(false);
+    setShowFreeBooksCatalogue(false);
     try {
       window.history.replaceState({}, '', '/');
     } catch {
@@ -90,9 +105,35 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOpenFreeBooksCatalogue = () => {
+    setShowFreeBooksCatalogue(true);
+    try {
+      window.history.pushState({}, '', '/free-books');
+    } catch {
+      // Ignore history errors
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromCatalogue = () => {
+    setShowFreeBooksCatalogue(false);
+    try {
+      if (signedUpEmail) {
+        window.history.pushState({}, '', '/welcome');
+      } else {
+        window.history.pushState({}, '', '/');
+      }
+    } catch {
+      // Ignore history errors
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   useEffect(() => {
     const handlePopState = () => {
-      if (window.location.pathname !== '/welcome') {
+      const isFreeBooksRoute = window.location.pathname === '/free-books';
+      setShowFreeBooksCatalogue(isFreeBooksRoute);
+      if (window.location.pathname !== '/welcome' && !isFreeBooksRoute) {
         setSignedUpEmail(null);
         setIsWelcomeBack(false);
       }
@@ -109,6 +150,16 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [showCopyToast]);
 
+  // If viewing the free books catalogue page
+  if (showFreeBooksCatalogue) {
+    return (
+      <FreeBooksCataloguePage
+        onBack={handleBackFromCatalogue}
+        userEmail={signedUpEmail || undefined}
+      />
+    );
+  }
+
   // If the user signed up, show the dedicated welcome confirmation page
   if (signedUpEmail) {
     return (
@@ -117,6 +168,7 @@ export default function App() {
         referralProfile={userProfile}
         isWelcomeBack={isWelcomeBack}
         onBackToHome={handleBackToHome}
+        onOpenFreeBooksCatalogue={handleOpenFreeBooksCatalogue}
       />
     );
   }
@@ -127,7 +179,10 @@ export default function App() {
       <BackgroundVideo />
 
       {/* Fixed Navigation Bar */}
-      <Navbar onOpenContact={() => setIsContactOpen(true)} />
+      <Navbar
+        onOpenContact={() => setIsContactOpen(true)}
+        onOpenFreeBooks={() => setIsFreeBooksOpen(true)}
+      />
 
       {/* Main Hero Content */}
       <HeroSection
@@ -137,6 +192,12 @@ export default function App() {
 
       {/* 3 Core Features Section */}
       <FeaturesSection onOpenWaitlist={() => setIsWaitlistOpen(true)} />
+
+      {/* Free Books & Reader Perks Section */}
+      <FreeBooksSection
+        onOpenWaitlist={() => setIsWaitlistOpen(true)}
+        onOpenFreeBooksModal={() => setIsFreeBooksOpen(true)}
+      />
 
       {/* Footer */}
       <footer className="relative z-10 pt-12 pb-24 sm:pb-28 px-5 sm:px-8 border-t border-black/10 bg-white/80 backdrop-blur-md">
@@ -210,6 +271,15 @@ export default function App() {
             </button>
             <span>•</span>
             <button
+              id="footer-free-books-btn"
+              type="button"
+              onClick={() => setIsFreeBooksOpen(true)}
+              className="hover:text-black transition-colors cursor-pointer font-medium text-neutral-800"
+            >
+              Free books
+            </button>
+            <span>•</span>
+            <button
               type="button"
               onClick={() => setIsContactOpen(true)}
               className="hover:text-black transition-colors cursor-pointer font-medium text-neutral-800"
@@ -243,6 +313,12 @@ export default function App() {
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
         onCopyEmail={handleCopyEmail}
+      />
+      <FreeBooksModal
+        isOpen={isFreeBooksOpen}
+        onClose={() => setIsFreeBooksOpen(false)}
+        onOpenWaitlist={() => setIsWaitlistOpen(true)}
+        onOpenCatalogue={handleOpenFreeBooksCatalogue}
       />
 
       {/* Bottom Right Toast Notification */}

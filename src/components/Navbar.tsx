@@ -4,9 +4,10 @@ const LOGO_SRC = '/bookarra-logo-transparent.png?v=3';
 
 interface NavbarProps {
   onOpenContact?: () => void;
+  onOpenFreeBooks?: () => void;
 }
 
-export function Navbar({ onOpenContact }: NavbarProps) {
+export function Navbar({ onOpenContact, onOpenFreeBooks }: NavbarProps) {
   const handleScrollToTop = (e: React.MouseEvent) => {
     e.preventDefault();
     window.scrollTo({
@@ -38,15 +39,26 @@ export function Navbar({ onOpenContact }: NavbarProps) {
         />
       </a>
 
-      {/* Right Action */}
-      <button
-        id="desktop-cta"
-        type="button"
-        onClick={onOpenContact}
-        className="text-[17px] sm:text-[20px] md:text-[23px] text-black underline underline-offset-4 hover:opacity-60 transition-opacity select-none font-medium cursor-pointer"
-      >
-        Get in touch
-      </button>
+      {/* Right Actions */}
+      <div className="flex items-center gap-4 sm:gap-7">
+        <button
+          id="navbar-free-books-button"
+          type="button"
+          onClick={onOpenFreeBooks}
+          className="text-[17px] sm:text-[20px] md:text-[23px] text-black underline underline-offset-4 hover:opacity-60 transition-opacity select-none font-medium cursor-pointer"
+        >
+          Free books
+        </button>
+
+        <button
+          id="desktop-cta"
+          type="button"
+          onClick={onOpenContact}
+          className="text-[17px] sm:text-[20px] md:text-[23px] text-black underline underline-offset-4 hover:opacity-60 transition-opacity select-none font-medium cursor-pointer"
+        >
+          Get in touch
+        </button>
+      </div>
     </header>
   );
 }

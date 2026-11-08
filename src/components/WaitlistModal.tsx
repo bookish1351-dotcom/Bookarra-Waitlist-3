@@ -16,6 +16,8 @@ import { submitToWaitlist } from '../lib/supabase';
 import {
   processReferralSignup,
   checkReferralCode,
+  lookupExistingUserProfile,
+  getAllCodes,
   getShareableUrl,
   type ReferralSignupResult,
 } from '../lib/referral';
@@ -87,7 +89,35 @@ export function WaitlistModal({
     setError('');
 
     try {
-      // If a referral code was typed, validate it against Supabase/local first
+      // 1. Check if user is ALREADY signed up FIRST!
+      // This guarantees they automatically get straight in with all their same info,
+      // referral code, and tracked friends, without generating a new code or encountering code errors.
+      const existingUser = await lookupExistingUserProfile(cleanEmail);
+      if (existingUser) {
+        const allCodes = getAllCodes();
+        const codeRec = existingUser.referralCode ? allCodes[existingUser.referralCode] : null;
+        const usedCount = codeRec ? codeRec.usedCount : 0;
+        const refResult: ReferralSignupResult = {
+          success: true,
+          isExistingUser: true,
+          hasOwnCode: existingUser.hasOwnCode,
+          referralCode: existingUser.referralCode,
+          usedReferralCode: existingUser.usedReferralCode,
+          isGoldenTicketWinner: existingUser.isGoldenTicketWinner,
+          referralSlotNumber: existingUser.referralSlotNumber,
+          remainingInvites: Math.max(0, 5 - usedCount),
+          premiumRewardCode: existingUser.premiumRewardCode,
+          message: "Welcome back! You're already signed up.",
+        };
+
+        setReferralResult(refResult);
+        if (onSuccess) {
+          onSuccess(cleanEmail, refResult, true);
+        }
+        return;
+      }
+
+      // If a referral code was typed for a new signup, validate it
       if (trimmedCode) {
         const validation = await checkReferralCode(trimmedCode);
         if (!validation.valid) {
@@ -97,7 +127,7 @@ export function WaitlistModal({
         }
       }
 
-      // 1. Process referral engine rules
+      // 2. Process new signup
       const refResult = await processReferralSignup(cleanEmail, trimmedCode || undefined);
       if (!refResult.success) {
         setError(refResult.error || 'Could not process referral code.');

@@ -242,6 +242,163 @@ export async function checkReferralCode(rawCode: string): Promise<{
 }
 
 /**
+ * Comprehensive lookup to check if a user is already signed up across
+ * local profiles, active code records, localStorage waitlist backups, and Supabase.
+ * Guarantees that existing users always retrieve their existing code, friend stats,
+ * and rewards, and NEVER have a new referral code generated.
+ */
+export async function lookupExistingUserProfile(
+  email: string
+): Promise<UserReferralProfile | null> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return null;
+
+  // 1. Check local profiles cache
+  const profiles = getAllProfiles();
+  if (profiles[cleanEmail]) {
+    const p = profiles[cleanEmail];
+    if (p.referralCode) {
+      const allCodes = getAllCodes();
+      const codeRec = allCodes[p.referralCode];
+      if (codeRec && !codeRec.ownerEmail) {
+        codeRec.ownerEmail = cleanEmail;
+        saveCode(codeRec);
+      }
+    }
+    return p;
+  }
+
+  // 2. Check if any code in getAllCodes() is owned by this email
+  const allCodes = getAllCodes();
+  for (const codeKey of Object.keys(allCodes)) {
+    const rec = allCodes[codeKey];
+    if (rec.ownerEmail && rec.ownerEmail.toLowerCase() === cleanEmail) {
+      const profileFromCode: UserReferralProfile = {
+        email: cleanEmail,
+        hasOwnCode: true,
+        referralCode: rec.code,
+        createdAt: rec.createdAt || new Date().toISOString(),
+      };
+      saveUserProfile(profileFromCode);
+      return profileFromCode;
+    }
+  }
+
+  // 3. Check localStorage waitlist backups ('bookarra_waitlist', 'bookish_waitlist')
+  try {
+    const rawWaitlist =
+      localStorage.getItem('bookarra_waitlist') ||
+      localStorage.getItem('bookish_waitlist');
+    if (rawWaitlist) {
+      const list = JSON.parse(rawWaitlist);
+      if (Array.isArray(list)) {
+        const item = list.find((it: any) =>
+          it === cleanEmail ||
+          (typeof it === 'object' && it?.email?.toLowerCase() === cleanEmail)
+        );
+        if (item && typeof item === 'object') {
+          const meta = item.referralMeta || {};
+          if (meta.referralCode) {
+            const profileFromWaitlist: UserReferralProfile = {
+              email: cleanEmail,
+              hasOwnCode: Boolean(meta.hasInvitePrivilege ?? true),
+              referralCode: meta.referralCode,
+              usedReferralCode: meta.usedReferralCode,
+              createdAt: item.date || new Date().toISOString(),
+            };
+            saveUserProfile(profileFromWaitlist);
+            return profileFromWaitlist;
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+
+  // 4. Check Supabase "waitlist" table (case-insensitive with ilike)
+  try {
+    const { data: rows, error: err } = await supabase
+      .from('waitlist')
+      .select('*')
+      .ilike('email', cleanEmail)
+      .limit(1);
+
+    if (!err && rows && rows.length > 0) {
+      const row = rows[0];
+      const hasCode = Boolean(row.has_invite_code || row.referral_code);
+
+      // Hydrate code record from Supabase if they have a code
+      if (row.referral_code) {
+        try {
+          const { data: friends } = await supabase
+            .from('waitlist')
+            .select('email, created_at')
+            .eq('referred_by', row.referral_code);
+
+          const friendEmails = friends?.map((f: any) => f.email).filter(Boolean) || [];
+          const codeRecord: ReferralCodeRecord = {
+            code: row.referral_code,
+            ownerEmail: cleanEmail,
+            maxUses: 5,
+            usedCount: friendEmails.length,
+            referredEmails: friendEmails,
+            luckySlotNumber: 1,
+            createdAt: row.created_at || new Date().toISOString(),
+          };
+          saveCode(codeRecord);
+        } catch {
+          // Ignore
+        }
+      }
+
+      const profileFromSupabase: UserReferralProfile = {
+        email: cleanEmail,
+        hasOwnCode: hasCode,
+        referralCode: row.referral_code || undefined,
+        usedReferralCode: row.referred_by || undefined,
+        isGoldenTicketWinner: hasCode && Boolean(row.referred_by),
+        referralSlotNumber: row.referral_slot_number || undefined,
+        createdAt: row.created_at || new Date().toISOString(),
+      };
+      saveUserProfile(profileFromSupabase);
+      return profileFromSupabase;
+    }
+  } catch (e) {
+    console.warn('Supabase waitlist lookup exception:', e);
+  }
+
+  // 5. Check Supabase legacy "Waitlist" table (capital W)
+  try {
+    const { data: legacyRows } = await supabase
+      .from('Waitlist')
+      .select('*')
+      .ilike('Email', cleanEmail)
+      .limit(1);
+
+    if (legacyRows && legacyRows.length > 0) {
+      const legRow = legacyRows[0];
+      const legCode = legRow.ReferralCode || legRow.referral_code;
+      const legReferredBy = legRow.ReferredBy || legRow.referred_by;
+
+      const profileFromLegacy: UserReferralProfile = {
+        email: cleanEmail,
+        hasOwnCode: Boolean(legCode),
+        referralCode: legCode || undefined,
+        usedReferralCode: legReferredBy || undefined,
+        createdAt: legRow.created_at || new Date().toISOString(),
+      };
+      saveUserProfile(profileFromLegacy);
+      return profileFromLegacy;
+    }
+  } catch (e) {
+    console.warn('Supabase Waitlist legacy lookup exception:', e);
+  }
+
+  return null;
+}
+
+/**
  * Core signup processor enforcing the 1-in-5 referral privilege rule
  */
 export async function processReferralSignup(
@@ -251,126 +408,29 @@ export async function processReferralSignup(
   const cleanEmail = email.trim().toLowerCase();
   const cleanCode = enteredCode?.trim().toUpperCase();
 
-  // 1. Check if user already exists in Supabase
-  try {
-    const { data: existingRows } = await supabase
-      .from('waitlist')
-      .select('*')
-      .eq('email', cleanEmail)
-      .limit(1);
-
-    if (existingRows && existingRows.length > 0) {
-      const p = existingRows[0];
-      const hasCode = Boolean(p.has_invite_code || p.referral_code);
-      let remaining = 5;
-
-      if (p.referral_code) {
-        const { data: refs } = await supabase
-          .from('waitlist')
-          .select('email')
-          .eq('referred_by', p.referral_code);
-        const count = refs?.length || 0;
-        remaining = Math.max(0, 5 - count);
-      }
-
-      const existingProfile: UserReferralProfile = {
-        email: cleanEmail,
-        hasOwnCode: hasCode,
-        referralCode: p.referral_code || undefined,
-        usedReferralCode: p.referred_by || undefined,
-        isGoldenTicketWinner: hasCode && Boolean(p.referred_by),
-        createdAt: p.created_at || new Date().toISOString(),
-      };
-      saveUserProfile(existingProfile);
-
-      return {
-        success: true,
-        isExistingUser: true,
-        hasOwnCode: hasCode,
-        referralCode: p.referral_code || undefined,
-        usedReferralCode: p.referred_by || undefined,
-        isGoldenTicketWinner: hasCode && Boolean(p.referred_by),
-        remainingInvites: remaining,
-        message: "You're already on the waitlist! Opening your invite pass...",
-      };
-    }
-  } catch (e) {
-    console.warn('Supabase existing check note:', e);
-  }
-
-  // 2. Check local profiles cache
-  const existingProfiles = getAllProfiles();
-  if (existingProfiles[cleanEmail]) {
-    const p = existingProfiles[cleanEmail];
+  // 1. Check if user already exists
+  const existingProfile = await lookupExistingUserProfile(cleanEmail);
+  if (existingProfile) {
     let remaining = 5;
-    if (p.referralCode) {
-      const rec = getAllCodes()[p.referralCode];
+    if (existingProfile.referralCode) {
+      const rec = getAllCodes()[existingProfile.referralCode];
       if (rec) remaining = Math.max(0, rec.maxUses - rec.usedCount);
     }
-    // Ensure active profile is set for session
-    saveUserProfile(p);
+
+    saveUserProfile(existingProfile);
+
     return {
       success: true,
       isExistingUser: true,
-      hasOwnCode: p.hasOwnCode,
-      referralCode: p.referralCode,
-      usedReferralCode: p.usedReferralCode,
-      isGoldenTicketWinner: p.isGoldenTicketWinner,
-      referralSlotNumber: p.referralSlotNumber,
+      hasOwnCode: existingProfile.hasOwnCode,
+      referralCode: existingProfile.referralCode,
+      usedReferralCode: existingProfile.usedReferralCode,
+      isGoldenTicketWinner: existingProfile.isGoldenTicketWinner,
+      referralSlotNumber: existingProfile.referralSlotNumber,
       remainingInvites: remaining,
-      message: "You're already on the waitlist! Opening your invite pass...",
+      premiumRewardCode: existingProfile.premiumRewardCode,
+      message: "Welcome back! You're already on the waitlist. Opening your invite pass...",
     };
-  }
-
-  // Check waitlist backup in localStorage in case profile wasn't stored
-  try {
-    const rawWaitlist =
-      localStorage.getItem('bookarra_waitlist') ||
-      localStorage.getItem('bookish_waitlist');
-    if (rawWaitlist) {
-      const list = JSON.parse(rawWaitlist);
-      const found = Array.isArray(list) && list.some(
-        (item: any) =>
-          item === cleanEmail ||
-          (typeof item === 'object' && item?.email?.toLowerCase() === cleanEmail)
-      );
-      if (found) {
-        let newCode = generateCode();
-        const all = getAllCodes();
-        while (all[newCode]) {
-          newCode = generateCode();
-        }
-        const newRecord: ReferralCodeRecord = {
-          code: newCode,
-          ownerEmail: cleanEmail,
-          maxUses: 5,
-          usedCount: 0,
-          referredEmails: [],
-          luckySlotNumber: Math.floor(Math.random() * 5) + 1,
-          createdAt: new Date().toISOString(),
-        };
-        saveCode(newRecord);
-
-        const syntheticProfile: UserReferralProfile = {
-          email: cleanEmail,
-          hasOwnCode: true,
-          referralCode: newCode,
-          createdAt: new Date().toISOString(),
-        };
-        saveUserProfile(syntheticProfile);
-
-        return {
-          success: true,
-          isExistingUser: true,
-          hasOwnCode: true,
-          referralCode: newCode,
-          remainingInvites: 5,
-          message: "You're already on the waitlist! Opening your invite pass...",
-        };
-      }
-    }
-  } catch {
-    // Ignore storage parse errors
   }
 
   // -------------------------------------------------------------
