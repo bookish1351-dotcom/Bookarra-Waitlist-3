@@ -576,15 +576,20 @@ export function WelcomePage({
                 </p>
               </div>
 
-              <button
-                id="welcome-free-books-btn"
-                type="button"
-                onClick={onOpenFreeBooksCatalogue}
-                className="mt-3.5 inline-flex items-center justify-center gap-2 bg-black hover:bg-neutral-800 text-white text-xs sm:text-sm font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs cursor-pointer group"
-              >
-                <span>Browse Free Books</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </button>
+              <div className="mt-3.5">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-neutral-800 mb-1.5">
+                  <span>Came here from Pinterest looking for a book? 👇</span>
+                </div>
+                <button
+                  id="welcome-free-books-btn"
+                  type="button"
+                  onClick={onOpenFreeBooksCatalogue}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-black hover:bg-neutral-800 text-white text-xs sm:text-sm font-semibold py-2.5 px-4 rounded-xl transition-all shadow-xs cursor-pointer group"
+                >
+                  <span>Browse Free Books</span>
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -25,7 +25,7 @@ export default function App() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isFreeBooksOpen, setIsFreeBooksOpen] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
-  const [waitlistCount, setWaitlistCount] = useState(9);
+  const [waitlistCount, setWaitlistCount] = useState(33);
   const [incomingReferralCode, setIncomingReferralCode] = useState<string>('');
   const [userProfile, setUserProfile] = useState<UserReferralProfile | null>(() =>
     getCurrentUserProfile()

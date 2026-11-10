@@ -20,7 +20,6 @@ export function FreeBooksModal({
   isOpen,
   onClose,
   onOpenWaitlist,
-  onOpenCatalogue,
 }: FreeBooksModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -139,24 +138,11 @@ export function FreeBooksModal({
                 </div>
               </div>
 
-              {onOpenCatalogue && (
-                <div className="mt-3 pt-2.5 border-t border-sky-200/60 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-neutral-800">
-                    📖 Now Available: <em>Powerless</em>, <em>The Inheritance Games</em> series & more
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenCatalogue();
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer"
-                  >
-                    <span>View & Download</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
+              <div className="mt-3 pt-2.5 border-t border-sky-200/60">
+                <span className="text-[11px] font-semibold text-neutral-800">
+                  📖 Now Available: <em>Powerless</em>, <em>The Inheritance Games</em> series & more
+                </span>
+              </div>
             </div>
           </div>
         </div>
